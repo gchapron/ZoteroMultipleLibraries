@@ -1,0 +1,17 @@
+{
+  "manifest_version": 2,
+  "name": "Zotero Multiple Libraries",
+  "version": "0.1.0",
+  "description": "Several personal libraries side by side in one Zotero, each working like My Library.",
+  "homepage_url": "https://github.com/gchapron/ZoteroMultipleLibraries",
+  "author": "Guillaume Chapron",
+  "icons": {},
+  "applications": {
+    "zotero": {
+      "id": "zotero-multiple-libraries@local.zotero.plugins",
+      "update_url": "https://raw.githubusercontent.com/gchapron/ZoteroMultipleLibraries/main/updates.json",
+      "strict_min_version": "10.0",
+      "strict_max_version": "10.0.*"
+    }
+  }
+}
