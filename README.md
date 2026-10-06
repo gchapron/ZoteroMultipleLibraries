@@ -60,11 +60,14 @@ account, because an account has exactly one personal library on zotero.org.
 So:
 
 1. On zotero.org, create a group (Groups → Create a New Group), private,
-   members only. Note the number in its web address, e.g.
-   `https://www.zotero.org/groups/1234567/teaching` → `1234567`.
-2. In Zotero: Settings → ZoteroMultipleLibraries, select the library, enter the
-   group ID, click Link to Group and confirm.
-3. Sync. Zotero's own sync uploads the library's content to that group and
+   members only.
+2. Sync once: Zotero downloads the new group as an empty group library.
+3. In Zotero: Settings → ZoteroMultipleLibraries, select the library, pick the
+   group from "Empty groups on this computer" (or enter its numeric ID, the
+   number in its web address), click Link to Group and confirm. The empty
+   group library is replaced by your library. A group that already contains
+   items cannot be linked.
+4. Sync. Zotero's own sync uploads the library's content to that group and
    takes the group's name and permissions from zotero.org. From then on it
    syncs like any other library, while the plugin keeps showing it at the top
    level of the tree. The "Sync this library with my Zotero account" checkbox
