@@ -17,6 +17,7 @@ var ZoteroMultipleLibraries = {
 		"settings.js",
 		"libraries.js",
 		"core.js",
+		"storage.js",
 		"tree.js",
 		"ui.js",
 	],
@@ -46,6 +47,7 @@ var ZoteroMultipleLibraries = {
 		// Make sure Zotero core never syncs local libraries, even without us
 		this.Libraries.ensureAllSkipped();
 		this.Core.init();
+		this.Storage.init();
 		this.UI.init();
 		this.Tree.startWindowWatcher();
 
@@ -81,6 +83,7 @@ var ZoteroMultipleLibraries = {
 		this.Tree.stopWindowWatcher();
 		this.UI.uninit();
 		this.Core.uninit();
+		this.Storage.uninit();
 		this.Util.Patches.unwrapAll();
 		// With the patches gone, redraw so local libraries show under Group Libraries
 		await this.Tree.detachAll();
