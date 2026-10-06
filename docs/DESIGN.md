@@ -102,19 +102,27 @@ backups see an ordinary group library.
 
 While the plugin is running it re-presents these libraries:
 
-- **Collection tree**: `Zotero.Groups.getAll()` is wrapped to exclude local
-  libraries, so Zotero's own `refresh()` never puts them under
-  "Group Libraries" (and that header disappears when no real groups exist).
-  The plugin's wrapper around `CollectionTree.prototype.refresh()` then
-  inserts each local library as a **level-0 row right after My Library**
-  (expanded with Zotero's own `_expandRow`, which adds Duplicate Items,
-  Unfiled Items, Retracted Items, and Trash exactly as for My Library).
-  Row indentation in Zotero's virtualized table is derived from the
-  parent chain, so the rows render like My Library on every platform.
+- **Collection tree**: the plugin wraps `CollectionTree.prototype.refresh()`.
+  While Zotero's own `refresh()` runs, `Zotero.Groups.getAll()` (also wrapped)
+  leaves local libraries out, so they never land under "Group Libraries"
+  (and that header disappears when no real groups exist). The wrapper then
+  inserts each local library as a **level-0 row right after My Library**,
+  expanded with Zotero's own `_expandRow`, which adds Duplicate Items,
+  Unfiled Items, Retracted Items, and Trash exactly as for My Library.
+  Row indentation in Zotero's virtualized table is derived from the parent
+  chain, so the rows render like My Library on every platform.
   `getIconName()` returns the plain library icon instead of the group icon,
   and double-click renames the library instead of opening zotero.org.
+  Every window loads its own copy of the tree module, so the main window is
+  patched on load and a window watcher patches the trees of the Select
+  Items, Edit Bibliography, and citation dialogs when they open. Outside a
+  patched refresh (local API, an unpatched tree) `Zotero.Groups.getAll()` is
+  untouched, so local libraries are never invisible: at worst they appear
+  as group libraries.
 - **Sync**: `Zotero.Sync.Runner.checkLibraries()` is wrapped to drop local
-  libraries from the list of libraries to sync. In addition every local
+  libraries from the list of libraries to sync (local groups are also hidden
+  from `Zotero.Groups.getAll()` while it runs, so it cannot report them as
+  groups the user "is no longer a member of"). In addition every local
   library's `G<groupID>` is written to Zotero's own
   `extensions.zotero.sync.librariesToSkip` preference, which Zotero core
   honours even when the plugin is not loaded: it will neither sync them nor
