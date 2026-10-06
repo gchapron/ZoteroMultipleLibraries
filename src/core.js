@@ -6,21 +6,43 @@
 
 ZoteroMultipleLibraries.Core = {
 	_notifierID: null,
+	// > 0 while Zotero.Groups.getAll() must leave local libraries out
+	_hideLocalGroups: 0,
+
+	/**
+	 * Run fn() with local libraries hidden from Zotero.Groups.getAll()
+	 *
+	 * Used around a patched collection tree refresh (the tree inserts them
+	 * itself) and around the sync runner's library check. Everywhere else, e.g.
+	 * an unpatched collection tree in a dialog or the local API, local libraries
+	 * stay visible as group libraries.
+	 */
+	async withLocalGroupsHidden(fn) {
+		this._hideLocalGroups++;
+		try {
+			return await fn();
+		}
+		finally {
+			this._hideLocalGroups--;
+		}
+	},
 
 	init() {
 		const ZML = ZoteroMultipleLibraries;
 		const Patches = ZML.Util.Patches;
 
-		// Zotero.Groups.getAll() feeds the "Group Libraries" section of the
-		// collection tree and the sync runner's group reconciliation. Local
-		// libraries are not groups for either purpose. (Zotero.Libraries.getAll()
-		// and Zotero.Groups.get(id) still return them.)
 		Patches.wrap(Zotero.Groups, "getAll", original => function () {
-			return original.call(this).filter(group => !ZML.Libraries.isLocalLibrary(group));
+			let groups = original.call(this);
+			if (ZML.Core._hideLocalGroups > 0) {
+				groups = groups.filter(group => !ZML.Libraries.isLocalLibrary(group));
+			}
+			return groups;
 		});
 
-		// Belt and braces for sync: never let a local library reach the engine,
-		// whether the whole account or specific libraries are being synced.
+		// Never let a local library reach the sync engine, whether the whole
+		// account or specific libraries are being synced. Hiding local groups
+		// during the check also keeps the original from reporting them as groups
+		// the user "is no longer a member of".
 		if (Zotero.Sync && Zotero.Sync.Runner) {
 			Patches.wrap(Zotero.Sync.Runner, "checkLibraries", original => async function (client, options, keyInfo, libraries = []) {
 				if (libraries && libraries.length) {
@@ -31,7 +53,9 @@ ZoteroMultipleLibraries.Core = {
 						return [];
 					}
 				}
-				let result = await original.call(this, client, options, keyInfo, libraries);
+				let result = await ZML.Core.withLocalGroupsHidden(
+					() => original.call(this, client, options, keyInfo, libraries)
+				);
 				return result.filter(id => !ZML.Libraries.isLocalLibrary(id));
 			});
 		}

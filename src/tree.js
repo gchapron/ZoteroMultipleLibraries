@@ -1,4 +1,4 @@
-/* global Zotero, ZoteroMultipleLibraries */
+/* global Zotero, Services, ZoteroMultipleLibraries */
 /*
  * Collection tree integration.
  *
@@ -16,8 +16,74 @@
  */
 
 ZoteroMultipleLibraries.Tree = {
-	// window -> CollectionTree instance
+	// window -> CollectionTree instance (main windows and dialogs)
 	_views: new Map(),
+
+	// Dialog windows that build their own collection tree (each window loads
+	// its own copy of the collectionTree module, so each needs patching)
+	DIALOG_VIEWS: {
+		"chrome://zotero/content/selectItemsDialog.xhtml": win => win.collectionsView,
+		"chrome://zotero/content/integration/editBibliographyDialog.xhtml": win => win.collectionsView,
+		"chrome://zotero/content/integration/citationDialog.xhtml": win => win.libraryLayout && win.libraryLayout.collectionsView,
+	},
+
+	_windowObserver: null,
+
+	startWindowWatcher() {
+		if (this._windowObserver) {
+			return;
+		}
+		this._windowObserver = {
+			observe: (subject, topic) => {
+				if (topic != "domwindowopened") {
+					return;
+				}
+				let win = subject;
+				win.addEventListener("load", () => {
+					this._onDialogWindowLoad(win).catch(e => ZoteroMultipleLibraries.Util.error(e));
+				}, { once: true });
+			},
+		};
+		Services.ww.registerNotification(this._windowObserver);
+	},
+
+	stopWindowWatcher() {
+		if (this._windowObserver) {
+			Services.ww.unregisterNotification(this._windowObserver);
+			this._windowObserver = null;
+		}
+	},
+
+	async _onDialogWindowLoad(win) {
+		let getView = this.DIALOG_VIEWS[win.location.href];
+		if (!getView) {
+			return;
+		}
+		// The tree may be created later (e.g., the citation dialog builds it when
+		// switching to library view), so keep looking while the window lives
+		let view = null;
+		while (!win.closed && ZoteroMultipleLibraries.started) {
+			view = getView(win);
+			if (view) {
+				break;
+			}
+			await Zotero.Promise.delay(250);
+		}
+		if (!view || win.closed) {
+			return;
+		}
+		// Let the dialog make its initial selection first
+		for (let i = 0; i < 20 && !win.closed && !(view.selection && view.selection.count > 0); i++) {
+			await Zotero.Promise.delay(100);
+		}
+		if (win.closed) {
+			return;
+		}
+		this._views.set(win, view);
+		win.addEventListener("unload", () => this._views.delete(win), { once: true });
+		this._patchPrototype(Object.getPrototypeOf(view));
+		await this.reload(view);
+	},
 
 	/**
 	 * Patch the collection tree of a main window and redraw it
@@ -141,7 +207,8 @@ ZoteroMultipleLibraries.Tree = {
 		}
 
 		Patches.wrap(proto, "refresh", original => async function (...args) {
-			await original.apply(this, args);
+			// Zotero's refresh() must not list local libraries under Group Libraries
+			await ZML.Core.withLocalGroupsHidden(() => original.apply(this, args));
 			try {
 				await Tree._insertLocalLibraries(this);
 			}

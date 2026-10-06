@@ -44,6 +44,7 @@ var ZoteroMultipleLibraries = {
 		this.Libraries.ensureAllSkipped();
 		this.Core.init();
 		this.UI.init();
+		this.Tree.startWindowWatcher();
 
 		// Windows that are already open don't get onMainWindowLoad
 		for (let win of Zotero.getMainWindows()) {
@@ -73,6 +74,7 @@ var ZoteroMultipleLibraries = {
 
 	async shutdown(reason) {
 		this.Util.log(`shutting down (reason ${reason})`);
+		this.Tree.stopWindowWatcher();
 		this.UI.uninit();
 		this.Core.uninit();
 		this.Util.Patches.unwrapAll();
