@@ -278,6 +278,9 @@ ZoteroMultipleLibraries.Libraries = {
 		// Let Zotero sync it (the user can opt out again in the settings pane)
 		this.unskip(oldGroupID);
 		this.unskip(groupID);
+		// Tell other computers that this group is an extra library, with the
+		// file syncing choice (Zotero storage by default)
+		await ZML.Shared.publish(libraryID);
 
 		ZML.Util.log(`linked library ${libraryID} to zotero.org group ${groupID} (was ${oldGroupID})`);
 		await ZML.Tree.reloadAll();
@@ -316,8 +319,15 @@ ZoteroMultipleLibraries.Libraries = {
 			throw e;
 		}
 		let libraryID = library.libraryID;
+		let shared = ZML.Shared.read(libraryID);
 		await ZML.Settings.update(libraryID, (c) => {
 			c.linked = true;
+			c.released = false;
+			// Without a choice shared from another computer, no file syncing until
+			// the user chooses deliberately (it must match the other computers)
+			if (!shared) {
+				c.fileSync.mode = "unset";
+			}
 		});
 		// Files Zotero could not fetch from Zotero storage were marked in sync
 		// without a file; start the file sync history afresh so they are fetched
@@ -328,7 +338,11 @@ ZoteroMultipleLibraries.Libraries = {
 		catch (e) {
 			ZML.Util.error(e);
 		}
-		ZML.Util.log(`adopted group library ${libraryID} (group ${library.groupID})`);
+		if (shared) {
+			await ZML.Shared.apply(libraryID, shared);
+		}
+		ZML.Util.log(`adopted group library ${libraryID} (group ${library.groupID})`
+			+ (shared ? " with shared settings" : ""));
 		await ZML.Tree.reloadAll();
 	},
 
@@ -347,7 +361,9 @@ ZoteroMultipleLibraries.Libraries = {
 		}
 		let libraryID = library.libraryID;
 		let wasWebDAV = ZML.Settings.get(libraryID).fileSync.mode == "webdav";
-		await ZML.Settings.remove(libraryID);
+		await ZML.Shared.unpublish(libraryID);
+		// Keep a tombstone so the shared marker does not adopt it again here
+		await ZML.Settings.set(libraryID, { released: true });
 		await ZML.Storage.removePassword(libraryID);
 		ZML.Storage.resetController(libraryID);
 		if (wasWebDAV) {

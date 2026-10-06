@@ -19,6 +19,9 @@ ZoteroMultipleLibraries.Settings = {
 			version: this.SCHEMA_VERSION,
 			// True once the library has been linked to a real zotero.org group
 			linked: false,
+			// True after "Show under Group Libraries" on this computer, so that the
+			// shared marker does not adopt it again here
+			released: false,
 			fileSync: {
 				// zotero: Zotero's normal behaviour for group libraries (Zotero storage,
 				//   following the Sync preference for group files) — the default

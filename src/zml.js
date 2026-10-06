@@ -18,6 +18,7 @@ var ZoteroMultipleLibraries = {
 		"libraries.js",
 		"core.js",
 		"storage.js",
+		"shared.js",
 		"tree.js",
 		"ui.js",
 	],
@@ -49,8 +50,13 @@ var ZoteroMultipleLibraries = {
 		this.Libraries.ensureAllSkipped();
 		this.Core.init();
 		this.Storage.init();
+		this.Shared.init();
 		this.UI.init();
 		this.Tree.startWindowWatcher();
+
+		// Libraries made extra libraries on another computer, shared settings
+		await this.Shared.scanAll();
+		this.Storage.scheduleQuietVerification();
 
 		this.prefPaneID = await Zotero.PreferencePanes.register({
 			pluginID: id,
@@ -90,6 +96,8 @@ var ZoteroMultipleLibraries = {
 	async shutdown(reason) {
 		this.Util.log(`shutting down (reason ${reason})`);
 		this.Tree.stopWindowWatcher();
+		this.Storage.cancelQuietVerification();
+		this.Shared.uninit();
 		if (this.prefPaneID) {
 			Zotero.PreferencePanes.unregister(this.prefPaneID);
 			this.prefPaneID = null;

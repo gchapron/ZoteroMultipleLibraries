@@ -1,4 +1,4 @@
-/* global Zotero, Services, Components, ZoteroMultipleLibraries */
+/* global Zotero, Services, Components, setTimeout, clearTimeout, ZoteroMultipleLibraries */
 /*
  * Per-library file syncing.
  *
@@ -47,7 +47,7 @@ ZoteroMultipleLibraries.Storage = {
 			if (mode === null) {
 				return original.call(this, libraryID);
 			}
-			if (mode == "none") {
+			if (mode == "none" || mode == "unset") {
 				return false;
 			}
 			// "zotero" or "webdav": the per-library choice is authoritative. In
@@ -93,6 +93,10 @@ ZoteroMultipleLibraries.Storage = {
 		}
 		if (Libraries.isLinkedLibrary(libraryID)) {
 			let mode = ZoteroMultipleLibraries.Settings.get(libraryID).fileSync.mode;
+			if (mode == "unset") {
+				// No deliberate choice made yet on this computer: nothing is synced
+				return "unset";
+			}
 			return this.MODES.includes(mode) ? mode : "zotero";
 		}
 		return null;
@@ -100,6 +104,65 @@ ZoteroMultipleLibraries.Storage = {
 
 	isWebDAVLibrary(libraryID) {
 		return this.getFileSyncMode(libraryID) == "webdav";
+	},
+
+	/**
+	 * Verify a WebDAV library's server without any dialog, if the credentials
+	 * are at hand (e.g., after settings arrived from another computer). Zotero
+	 * skips an unverified WebDAV server, including for on-demand downloads.
+	 */
+	async verifyQuietly(libraryID) {
+		const ZML = ZoteroMultipleLibraries;
+		if (!this.isWebDAVLibrary(libraryID) || !Zotero.Users.getCurrentUserID()) {
+			return false;
+		}
+		let config = ZML.Settings.get(libraryID).fileSync;
+		if (config.verified) {
+			return true;
+		}
+		if (config.useMain) {
+			if (!this.mainWebDAVAvailable()) {
+				return false;
+			}
+		}
+		else if (!config.url || !config.username || !(await this.getPassword(libraryID))) {
+			return false;
+		}
+		try {
+			this.resetController(libraryID);
+			let controller = this.getController(libraryID, {});
+			await controller.checkServer();
+			ZML.Util.log(`WebDAV server verified for library ${libraryID}`);
+			return true;
+		}
+		catch (e) {
+			ZML.Util.log(`quiet WebDAV verification failed for library ${libraryID}: ${e}`);
+			return false;
+		}
+	},
+
+	_quietVerificationTimer: null,
+
+	/**
+	 * Shortly after startup, verify any WebDAV library not yet verified here
+	 */
+	scheduleQuietVerification(delay = 20000) {
+		this.cancelQuietVerification();
+		this._quietVerificationTimer = setTimeout(() => {
+			this._quietVerificationTimer = null;
+			(async () => {
+				for (let library of ZoteroMultipleLibraries.Libraries.getAll()) {
+					await this.verifyQuietly(library.libraryID);
+				}
+			})().catch(e => ZoteroMultipleLibraries.Util.error(e));
+		}, delay);
+	},
+
+	cancelQuietVerification() {
+		if (this._quietVerificationTimer) {
+			clearTimeout(this._quietVerificationTimer);
+			this._quietVerificationTimer = null;
+		}
 	},
 
 	/**

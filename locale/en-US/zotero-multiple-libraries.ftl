@@ -80,6 +80,13 @@ zml-prefs-step2 =
     .value = 2. Sync, so that the new group appears here
 zml-prefs-sync-now-button =
     .label = Sync Now
+zml-prefs-sync-now-running = Syncing…
+zml-prefs-sync-now-done =
+    { $count ->
+        [0] Done. No empty group library found yet; it can take a moment to appear after creating it on zotero.org.
+        [one] Done. { $count } empty group library found.
+       *[other] Done. { $count } empty group libraries found.
+    }
 zml-prefs-step3 =
     .value = 3. Choose that group:
 zml-prefs-group-select-placeholder = Choose a group…
@@ -96,6 +103,9 @@ zml-prefs-release-explanation = Turns it back into an ordinary group library.
 
 zml-prefs-file-heading = Files of “{ $name }”
 zml-prefs-file-sync-unavailable = Attachment files can be synced once syncing is enabled for this library.
+zml-prefs-file-deliberate = No file syncing choice has been made for this library on this computer, and none was found from your other computers. Choose below; the choice must be the same on every computer that syncs this library, and it is shared with them from now on.
+zml-prefs-shared-note = The file syncing choice (including a WebDAV server’s address and username, never its password) is stored in the group’s settings on zotero.org, so that your other computers use the same.
+zml-prefs-password-required = Password required on this computer: the settings came from another computer, and passwords are never shared.
 zml-prefs-file-mode-zotero =
     .label = Zotero storage
 zml-prefs-zotero-storage-note = Files are synced through Zotero storage, whatever Zotero’s Sync setting for group libraries says. They count against the storage quota of the group’s owner (you).

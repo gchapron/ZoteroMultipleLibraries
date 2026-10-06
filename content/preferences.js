@@ -78,12 +78,20 @@ window.ZoteroMultipleLibrariesPrefs = {
 
 		// Keep the lists in step with libraries created/renamed/deleted/downloaded elsewhere
 		this._notifierID = Zotero.Notifier.registerObserver({
-			notify: (action, type) => {
+			notify: (action, type, ids) => {
 				if (type == "group") {
 					this.refreshList();
 				}
+				else if (type == "setting" && this._libraryID) {
+					// Shared settings arrived for the selected library
+					let key = this.ZML.Shared.KEY;
+					if (ids.some(id => String(id) == this._libraryID + "/" + key)) {
+						// Give the plugin's own handler time to apply them first
+						window.setTimeout(() => this.render(), 500);
+					}
+				}
 			},
-		}, ["group"], "zotero-multiple-libraries-prefs");
+		}, ["group", "setting"], "zotero-multiple-libraries-prefs");
 		window.addEventListener("unload", () => {
 			if (this._notifierID) {
 				Zotero.Notifier.unregisterObserver(this._notifierID);
@@ -261,8 +269,16 @@ window.ZoteroMultipleLibrariesPrefs = {
 		const ZML = this.ZML;
 		let libraryID = this._libraryID;
 		let config = ZML.Settings.get(libraryID).fileSync;
-		let mode = ZML.Storage.MODES.includes(config.mode) ? config.mode : "zotero";
-		this.$("zml-file-mode").value = mode;
+		let unset = config.mode == "unset";
+		let mode = ZML.Storage.MODES.includes(config.mode) ? config.mode : (unset ? "" : "zotero");
+		this.$("zml-file-deliberate-note").hidden = !unset;
+		let radiogroup = this.$("zml-file-mode");
+		if (mode) {
+			radiogroup.value = mode;
+		}
+		else {
+			radiogroup.selectedIndex = -1;
+		}
 
 		// Zotero storage
 		this.$("zml-zotero-note").hidden = mode != "zotero";
@@ -286,7 +302,13 @@ window.ZoteroMultipleLibrariesPrefs = {
 			this.$("zml-username").value = config.username || "";
 			this.$("zml-password").value = await ZML.Storage.getPassword(libraryID);
 			this.updateWebDAVFolder();
-			this.updateVerifyStatus();
+			if (!useMain && config.url && config.username && !this.$("zml-password").value) {
+				// Settings came from another computer; the password never travels
+				this.updateVerifyStatus(this.getString("zml-prefs-password-required"));
+			}
+			else {
+				this.updateVerifyStatus();
+			}
 		}
 	},
 
@@ -321,12 +343,23 @@ window.ZoteroMultipleLibrariesPrefs = {
 	// Syncing actions
 	//
 	async syncNow() {
+		let button = this.$("zml-sync-now");
+		let status = this.$("zml-sync-now-status");
+		button.disabled = true;
+		status.textContent = this.getString("zml-prefs-sync-now-running");
 		try {
+			// Same as the toolbar button; errors (e.g., no account) are shown by Zotero
 			await Zotero.Sync.Runner.sync();
 		}
 		catch (e) {
 			this.ZML.Util.error(e);
 		}
+		finally {
+			button.disabled = false;
+		}
+		await this.refreshList();
+		let count = (await this.ZML.Libraries.getLinkableGroups()).length;
+		status.textContent = this.getString("zml-prefs-sync-now-done", { count });
 	},
 
 	async linkLibrary() {
@@ -389,6 +422,7 @@ window.ZoteroMultipleLibrariesPrefs = {
 				this.ZML.Util.error(e);
 			}
 		}
+		await this.ZML.Shared.publish(this._libraryID);
 		await this.renderFileSettings();
 		if (mode == "webdav" && this.ZML.Settings.get(this._libraryID).fileSync.useMain
 				&& this.ZML.Storage.mainWebDAVAvailable()) {
@@ -416,6 +450,7 @@ window.ZoteroMultipleLibrariesPrefs = {
 			c.fileSync.verified = false;
 		});
 		this.ZML.Storage.resetController(this._libraryID);
+		await this.ZML.Shared.publish(this._libraryID);
 		await this.renderFileSettings();
 		if (useMain) {
 			// Creates the library's folder on My Library's server and checks it
@@ -495,6 +530,7 @@ window.ZoteroMultipleLibrariesPrefs = {
 		});
 		await ZML.Storage.setPassword(libraryID, username, password);
 		ZML.Storage.resetController(libraryID);
+		await ZML.Shared.publish(libraryID);
 		this.$("zml-url").value = url;
 		this.updateWebDAVFolder();
 		this.updateVerifyStatus();
