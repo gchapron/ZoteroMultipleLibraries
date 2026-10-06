@@ -1,0 +1,15 @@
+{
+  "manifest_version": 2,
+  "name": "ZML Dev Bridge (development only)",
+  "version": "0.1.0",
+  "description": "Runs JavaScript posted to the local Zotero HTTP server. Development only: never install in a real profile.",
+  "author": "Guillaume Chapron",
+  "applications": {
+    "zotero": {
+      "id": "zml-dev-bridge@local.zotero.plugins",
+      "update_url": "https://updates.invalid/zml-dev-bridge.json",
+      "strict_min_version": "7.0",
+      "strict_max_version": "10.*"
+    }
+  }
+}
