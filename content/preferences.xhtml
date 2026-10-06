@@ -14,6 +14,16 @@
 			<button id="zml-delete" data-l10n-id="zml-prefs-delete-button"/>
 		</hbox>
 		<description id="zml-no-libraries" data-l10n-id="zml-prefs-no-libraries" hidden="true"/>
+		<vbox id="zml-adopt-box">
+			<description data-l10n-id="zml-prefs-adopt-explanation"/>
+			<hbox align="center">
+				<label data-l10n-id="zml-prefs-adopt-label" control="zml-adopt-select"/>
+				<menulist id="zml-adopt-select" native="true" style="flex: 1">
+					<menupopup/>
+				</menulist>
+				<button id="zml-adopt" data-l10n-id="zml-prefs-adopt-button"/>
+			</hbox>
+		</vbox>
 	</groupbox>
 
 	<groupbox id="zml-sync-box">
@@ -34,6 +44,10 @@
 			</hbox>
 		</vbox>
 		<checkbox id="zml-sync-enabled" data-l10n-id="zml-prefs-sync-enabled" native="true"/>
+		<hbox id="zml-release-box" align="center">
+			<button id="zml-release" data-l10n-id="zml-prefs-release-button"/>
+			<description data-l10n-id="zml-prefs-release-explanation" style="flex: 1"/>
+		</hbox>
 	</groupbox>
 
 	<groupbox id="zml-file-box">

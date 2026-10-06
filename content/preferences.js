@@ -36,6 +36,8 @@ window.ZoteroMultipleLibrariesPrefs = {
 		this.$("zml-rename").addEventListener("command", () => this.renameLibrary());
 		this.$("zml-delete").addEventListener("command", () => this.deleteLibrary());
 		this.$("zml-link").addEventListener("command", () => this.linkLibrary());
+		this.$("zml-adopt").addEventListener("command", () => this.adoptGroup());
+		this.$("zml-release").addEventListener("command", () => this.releaseGroup());
 		this.$("zml-group-select").addEventListener("command", () => {
 			let value = this.$("zml-group-select").value;
 			if (value) {
@@ -105,6 +107,7 @@ window.ZoteroMultipleLibrariesPrefs = {
 			popup.appendChild(item);
 		}
 		this.$("zml-no-libraries").hidden = libraries.length > 0;
+		this.refreshAdoptableGroups();
 		let current = libraries.find(l => l.libraryID == this._libraryID);
 		await this.selectLibrary(current ? current.libraryID : (libraries[0] ? libraries[0].libraryID : null));
 	},
@@ -139,6 +142,7 @@ window.ZoteroMultipleLibrariesPrefs = {
 		}
 		this.$("zml-sync-enabled").hidden = !linked;
 		this.$("zml-sync-enabled").checked = linked && ZML.Libraries.isSyncEnabled(library);
+		this.$("zml-release-box").hidden = !linked;
 
 		this.$("zml-file-unavailable").hidden = linked;
 		this.$("zml-file-settings").hidden = !linked;
@@ -151,6 +155,44 @@ window.ZoteroMultipleLibrariesPrefs = {
 			this.$("zml-username").value = config.username || "";
 			this.$("zml-password").value = await ZML.Storage.getPassword(library.libraryID);
 			this.updateVerifyStatus();
+		}
+	},
+
+	/**
+	 * Ordinary group libraries on this computer that can be shown as extra
+	 * libraries (e.g., a group linked to an extra library on another computer)
+	 */
+	refreshAdoptableGroups() {
+		let groups = this.ZML.Libraries.getAdoptableGroups();
+		let menulist = this.$("zml-adopt-select");
+		let popup = menulist.menupopup || menulist.querySelector("menupopup");
+		popup.replaceChildren();
+		for (let group of groups) {
+			let item = document.createXULElement("menuitem");
+			item.setAttribute("label", `${group.name} (${group.groupID})`);
+			item.setAttribute("value", String(group.libraryID));
+			popup.appendChild(item);
+		}
+		menulist.value = groups.length ? String(groups[0].libraryID) : "";
+		this.$("zml-adopt-box").hidden = groups.length == 0;
+	},
+
+	async adoptGroup() {
+		let libraryID = parseInt(this.$("zml-adopt-select").value);
+		let library = libraryID ? Zotero.Libraries.get(libraryID) : null;
+		if (!library) {
+			return;
+		}
+		if (await this.ZML.UI.adoptGroup(window, library)) {
+			this._libraryID = library.libraryID;
+			await this.refreshList();
+		}
+	},
+
+	async releaseGroup() {
+		if (this.library && await this.ZML.UI.releaseGroup(window, this.library)) {
+			this._libraryID = null;
+			await this.refreshList();
 		}
 	},
 
@@ -211,8 +253,18 @@ window.ZoteroMultipleLibrariesPrefs = {
 		if (!this.library) {
 			return;
 		}
-		let linked = await this.ZML.UI.linkLibrary(window, this.library, this.$("zml-group-id").value);
-		if (linked) {
+		let result = await this.ZML.UI.linkLibrary(window, this.library, this.$("zml-group-id").value);
+		if (result == "adopted") {
+			// The existing group was adopted instead; show it
+			let groupID = parseInt(String(this.$("zml-group-id").value).trim());
+			let adopted = Zotero.Groups.get(groupID);
+			if (adopted) {
+				this._libraryID = adopted.libraryID;
+			}
+			this.$("zml-group-id").value = "";
+			await this.refreshList();
+		}
+		else if (result) {
 			this.$("zml-group-id").value = "";
 			await this.render();
 		}
@@ -229,11 +281,22 @@ window.ZoteroMultipleLibrariesPrefs = {
 			return;
 		}
 		let mode = this.$("zml-file-mode").value;
+		let previous = this.ZML.Settings.get(this._libraryID).fileSync.mode;
 		await this.ZML.Settings.update(this._libraryID, (c) => {
 			c.fileSync.mode = mode;
 		});
 		this.ZML.Storage.resetController(this._libraryID);
 		this.$("zml-webdav-box").hidden = mode != "webdav";
+		// Switching where files live: start the file sync history afresh so files
+		// present here are uploaded and missing ones fetched from the new place
+		if (mode != "none" && mode != previous) {
+			try {
+				await Zotero.Sync.Storage.Local.resetAllSyncStates(this._libraryID);
+			}
+			catch (e) {
+				this.ZML.Util.error(e);
+			}
+		}
 	},
 
 	/**

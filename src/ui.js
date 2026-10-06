@@ -13,6 +13,10 @@ ZoteroMultipleLibraries.UI = {
 
 		let isManagedRow = rows => rows && rows.length == 1
 			&& rows[0].type == "group" && ZML.Libraries.isManagedLibrary(rows[0].ref);
+		let isPlainGroupRow = rows => rows && rows.length == 1
+			&& rows[0].type == "group" && !ZML.Libraries.isManagedLibrary(rows[0].ref);
+		let isLinkedRow = rows => rows && rows.length == 1
+			&& rows[0].type == "group" && ZML.Libraries.isLinkedLibrary(rows[0].ref);
 
 		// Collection tree context menu
 		this._menuIDs.push(Zotero.MenuManager.registerMenu({
@@ -47,6 +51,23 @@ ZoteroMultipleLibraries.UI = {
 					l10nID: "zml-menu-delete-library",
 					onShowing: (_event, context) => context.setVisible(isManagedRow(context.collectionTreeRows)),
 					onCommand: (event, context) => this.deleteLibrary(
+						event.target.ownerGlobal, context.collectionTreeRows[0].ref
+					),
+				},
+				{
+					menuType: "menuitem",
+					l10nID: "zml-menu-adopt-group",
+					icon: libraryIcon,
+					onShowing: (_event, context) => context.setVisible(isPlainGroupRow(context.collectionTreeRows)),
+					onCommand: (event, context) => this.adoptGroup(
+						event.target.ownerGlobal, context.collectionTreeRows[0].ref
+					),
+				},
+				{
+					menuType: "menuitem",
+					l10nID: "zml-menu-release-group",
+					onShowing: (_event, context) => context.setVisible(isLinkedRow(context.collectionTreeRows)),
+					onCommand: (event, context) => this.releaseGroup(
 						event.target.ownerGlobal, context.collectionTreeRows[0].ref
 					),
 				},
@@ -263,7 +284,22 @@ ZoteroMultipleLibraries.UI = {
 					return false;
 				}
 				if (await ZML.Libraries.hasContent(existing.libraryID)) {
-					Services.prompt.alert(window, title, this._getString("zml-error-group-not-empty", { groupID: String(groupID), name: existing.name }));
+					// Typically the second computer: the group already holds the content
+					// uploaded elsewhere, so offer to adopt it instead of linking
+					let index = Zotero.Prompt.confirm({
+						window,
+						title,
+						text: this._getString("zml-adopt-instead-text", {
+							groupID: String(groupID), groupName: existing.name, name: library.name,
+						}),
+						button0: this._getString("zml-adopt-button"),
+						button1: Services.prompt.BUTTON_TITLE_CANCEL,
+						defaultButton: 0,
+					});
+					if (index === 0) {
+						await ZML.Libraries.adoptGroup(existing);
+						return "adopted";
+					}
 					return false;
 				}
 			}
@@ -305,6 +341,66 @@ ZoteroMultipleLibraries.UI = {
 					msg = String(e);
 			}
 			Services.prompt.alert(window, title, msg);
+			return false;
+		}
+	},
+
+	/**
+	 * Show an existing group library as an extra library
+	 *
+	 * @return {Boolean}
+	 */
+	async adoptGroup(window, library) {
+		const ZML = ZoteroMultipleLibraries;
+		let title = this._getString("zml-adopt-title");
+		try {
+			if (!library || library.libraryType != "group" || ZML.Libraries.isManagedLibrary(library)) {
+				return false;
+			}
+			await ZML.Libraries.adoptGroup(library);
+			return true;
+		}
+		catch (e) {
+			ZML.Util.error(e);
+			Services.prompt.alert(window, title, String(e));
+			return false;
+		}
+	},
+
+	/**
+	 * Put a linked library back under Group Libraries (asks first: its file
+	 * sync settings are dropped)
+	 *
+	 * @return {Boolean}
+	 */
+	async releaseGroup(window, library) {
+		const ZML = ZoteroMultipleLibraries;
+		let title = this._getString("zml-release-title");
+		try {
+			if (!ZML.Libraries.isLinkedLibrary(library)) {
+				return false;
+			}
+			let index = Zotero.Prompt.confirm({
+				window,
+				title,
+				text: this._getString("zml-release-text", { name: library.name }),
+				button0: this._getString("zml-release-button"),
+				button1: Services.prompt.BUTTON_TITLE_CANCEL,
+				defaultButton: 1,
+			});
+			if (index !== 0) {
+				return false;
+			}
+			let view = window.ZoteroPane && window.ZoteroPane.collectionsView;
+			if (view) {
+				await view.selectLibrary(Zotero.Libraries.userLibraryID);
+			}
+			await ZML.Libraries.releaseGroup(library);
+			return true;
+		}
+		catch (e) {
+			ZML.Util.error(e);
+			Services.prompt.alert(window, title, String(e));
 			return false;
 		}
 	},

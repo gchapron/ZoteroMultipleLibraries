@@ -284,6 +284,76 @@ ZoteroMultipleLibraries.Libraries = {
 	},
 
 	/**
+	 * Real group libraries on this computer that are not managed, whatever their
+	 * content: a group linked to an extra library on another computer shows up
+	 * here as an ordinary group library until it is adopted
+	 *
+	 * @return {Zotero.Group[]}
+	 */
+	getAdoptableGroups() {
+		return this._sorted(Zotero.Libraries.getAll().filter(
+			l => l.libraryType == "group" && !this.isManagedLibrary(l)
+		));
+	},
+
+	/**
+	 * Show an existing group library as an extra (top-level) library and allow
+	 * per-library file syncing for it. This is the second-computer counterpart
+	 * of linkToGroup(): the group already holds the content.
+	 *
+	 * @param {Zotero.Group} library
+	 */
+	async adoptGroup(library) {
+		const ZML = ZoteroMultipleLibraries;
+		if (!library || library.libraryType != "group" || this.isLocalLibrary(library)) {
+			let e = new Error("Not a group library");
+			e.code = "not-group";
+			throw e;
+		}
+		if (this.isManagedLibrary(library)) {
+			let e = new Error("Already an extra library");
+			e.code = "group-managed";
+			throw e;
+		}
+		let libraryID = library.libraryID;
+		await ZML.Settings.update(libraryID, (c) => {
+			c.linked = true;
+		});
+		// Files Zotero could not fetch from Zotero storage were marked in sync
+		// without a file; start the file sync history afresh so they are fetched
+		// once file syncing (e.g., WebDAV) is set up for this library
+		try {
+			await Zotero.Sync.Storage.Local.resetAllSyncStates(libraryID);
+		}
+		catch (e) {
+			ZML.Util.error(e);
+		}
+		ZML.Util.log(`adopted group library ${libraryID} (group ${library.groupID})`);
+		await ZML.Tree.reloadAll();
+	},
+
+	/**
+	 * Stop managing a linked library: it becomes an ordinary group library again
+	 * (its per-library file sync settings and password are dropped)
+	 *
+	 * @param {Zotero.Group} library
+	 */
+	async releaseGroup(library) {
+		const ZML = ZoteroMultipleLibraries;
+		if (!this.isLinkedLibrary(library)) {
+			let e = new Error("Not a linked library");
+			e.code = "not-linked";
+			throw e;
+		}
+		let libraryID = library.libraryID;
+		await ZML.Settings.remove(libraryID);
+		await ZML.Storage.removePassword(libraryID);
+		ZML.Storage.resetController(libraryID);
+		ZML.Util.log(`released group library ${libraryID} (group ${library.groupID})`);
+		await ZML.Tree.reloadAll();
+	},
+
+	/**
 	 * Whether a library holds any items (including trashed), collections or searches
 	 */
 	async hasContent(libraryID) {

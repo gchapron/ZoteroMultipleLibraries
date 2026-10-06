@@ -111,3 +111,30 @@ zml-error-group-managed = Group { $groupID } is already an extra library.
 zml-error-not-local = Only a library that is not yet linked can be linked to a group.
 zml-error-url-same-as-main = This is the WebDAV folder My Library syncs to. Use a different folder for this library.
 zml-error-url-same-as-other = The library “{ $name }” already syncs to this WebDAV folder. Use a different folder.
+
+## Adopting existing group libraries (second computer)
+
+zml-menu-adopt-group =
+    .label = Show as Extra Library
+zml-menu-release-group =
+    .label = Show under Group Libraries
+zml-prefs-adopt-explanation = A group that is an extra library on another computer appears here as an ordinary group library after syncing. Showing it as an extra library moves it to the top level of the tree and lets you set up its file syncing.
+zml-prefs-adopt-label =
+    .value = Group libraries on this computer:
+zml-prefs-adopt-button =
+    .label = Show as Extra Library
+zml-prefs-release-button =
+    .label = Show under Group Libraries
+zml-prefs-release-explanation = Makes this an ordinary group library again. Its file syncing settings here are removed; the group and its content are not affected.
+zml-adopt-title = Show as Extra Library
+zml-adopt-button = Show as Extra Library
+zml-adopt-instead-text =
+    Group { $groupID } (“{ $groupName }”) already contains items, so “{ $name }” cannot be linked to it.
+
+    If that group is an extra library on another computer, show it as an extra library here instead: it then appears next to My Library with its content, and you can set up its file syncing. “{ $name }” stays as it is.
+zml-release-title = Show under Group Libraries
+zml-release-button = Show under Group Libraries
+zml-release-text =
+    Show “{ $name }” under Group Libraries again?
+
+    Its file syncing settings in ZoteroMultipleLibraries are removed. The group and its content are not affected, and you can show it as an extra library again later.
