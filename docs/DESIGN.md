@@ -216,9 +216,18 @@ offers adopting instead.
 
 Zotero syncs per-library synced settings (`Zotero.SyncedSettings`) for
 group libraries through the API (`/groups/<id>/settings`), which is how tag
-colours travel between computers. The plugin stores a marker there under the
-key `zoteroMultipleLibraries`: `{ extraLibrary: true, fileSync: { mode,
-useMain, scheme, url, username } }`, never a password. It is written when a
+colours travel between computers. The server, however, only accepts a fixed
+list of setting names (`tagColors`, `feeds`, `attachmentRenameTemplate`, …)
+plus three per-item patterns, and answers "Invalid setting" to anything
+else (0.2.1 learned this the hard way). Of the accepted slots,
+`lastReadAloudPosition_g<groupID>_<itemKey>` takes an arbitrary object as
+value and is only ever read by Zotero's client for the item with that key.
+The plugin therefore stores its marker under
+`lastReadAloudPosition_g<groupID>_ZMLSETTG`, a pseudo item key no real item
+can have (keys are random): `{ extraLibrary: true, fileSync: { mode,
+useMain, scheme, url, username } }`, never a password. Should Zotero one day
+purge such settings for non-existent items, the marker simply disappears and
+other computers fall back to asking for a deliberate choice. It is written when a
 library is linked, when it is adopted without a marker and a choice is then
 made, and whenever the file syncing choice changes; it is cleared when the
 library is shown under Group Libraries again (with a local tombstone so the

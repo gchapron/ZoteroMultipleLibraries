@@ -3,6 +3,16 @@
     "zotero-multiple-libraries@local.zotero.plugins": {
       "updates": [
         {
+          "version": "0.2.2",
+          "update_link": "https://github.com/gchapron/ZoteroMultipleLibraries/releases/download/v0.2.2/zotero-multiple-libraries-0.2.2.xpi",
+          "applications": {
+            "zotero": {
+              "strict_min_version": "10.0",
+              "strict_max_version": "10.0.*"
+            }
+          }
+        },
+        {
           "version": "0.2.1",
           "update_link": "https://github.com/gchapron/ZoteroMultipleLibraries/releases/download/v0.2.1/zotero-multiple-libraries-0.2.1.xpi",
           "applications": {
