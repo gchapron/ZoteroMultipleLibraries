@@ -1,0 +1,18 @@
+{
+  "addons": {
+    "zotero-multiple-libraries@local.zotero.plugins": {
+      "updates": [
+        {
+          "version": "0.1.0",
+          "update_link": "https://github.com/gchapron/ZoteroMultipleLibraries/releases/download/v0.1.0/zotero-multiple-libraries-0.1.0.xpi",
+          "applications": {
+            "zotero": {
+              "strict_min_version": "10.0",
+              "strict_max_version": "10.0.*"
+            }
+          }
+        }
+      ]
+    }
+  }
+}
