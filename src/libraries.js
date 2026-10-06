@@ -346,9 +346,23 @@ ZoteroMultipleLibraries.Libraries = {
 			throw e;
 		}
 		let libraryID = library.libraryID;
+		let wasWebDAV = ZML.Settings.get(libraryID).fileSync.mode == "webdav";
 		await ZML.Settings.remove(libraryID);
 		await ZML.Storage.removePassword(libraryID);
 		ZML.Storage.resetController(libraryID);
+		if (wasWebDAV) {
+			// Files now follow Zotero's rule for group libraries (Zotero storage).
+			// As Zotero does when My Library switches storage modes, start the file
+			// sync history afresh: files on this computer get uploaded there (if
+			// group file syncing is on), missing ones fetched from there. Files that
+			// exist only on the WebDAV server are not transferred.
+			try {
+				await Zotero.Sync.Storage.Local.resetAllSyncStates(libraryID);
+			}
+			catch (e) {
+				ZML.Util.error(e);
+			}
+		}
 		ZML.Util.log(`released group library ${libraryID} (group ${library.groupID})`);
 		await ZML.Tree.reloadAll();
 	},

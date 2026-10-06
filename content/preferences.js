@@ -4,6 +4,12 @@
  *
  * Loaded by Zotero into a sandbox whose prototype is the preferences window,
  * before the pane markup (content/preferences.xhtml) is inserted.
+ *
+ * Sections: Libraries (pick / create / show a group library as extra library),
+ * Syncing of the selected library (not synced: guided steps to a private
+ * zotero.org group; synced: pause, or show under Group Libraries again), and
+ * File syncing (Zotero storage, WebDAV reusing My Library's server or a
+ * different one, or none).
  */
 
 window.ZoteroMultipleLibrariesPrefs = {
@@ -23,38 +29,54 @@ window.ZoteroMultipleLibrariesPrefs = {
 		return this.ZML.Util.getString(id, args);
 	},
 
+	get library() {
+		return this._libraryID ? Zotero.Libraries.get(this._libraryID) : null;
+	},
+
 	async init() {
 		if (this._initialized || !this.$("zml-prefs-root")) {
 			return;
 		}
 		this._initialized = true;
 
+		// Libraries
 		this.$("zml-library").addEventListener("command", () => {
 			this.selectLibrary(parseInt(this.$("zml-library").value));
 		});
 		this.$("zml-new").addEventListener("command", () => this.newLibrary());
 		this.$("zml-rename").addEventListener("command", () => this.renameLibrary());
 		this.$("zml-delete").addEventListener("command", () => this.deleteLibrary());
-		this.$("zml-link").addEventListener("command", () => this.linkLibrary());
 		this.$("zml-adopt").addEventListener("command", () => this.adoptGroup());
-		this.$("zml-release").addEventListener("command", () => this.releaseGroup());
+
+		// Syncing
+		this.$("zml-open-groups").addEventListener("command", () => {
+			Zotero.launchURL("https://www.zotero.org/groups/new");
+		});
+		this.$("zml-sync-now").addEventListener("command", () => this.syncNow());
 		this.$("zml-group-select").addEventListener("command", () => {
 			let value = this.$("zml-group-select").value;
 			if (value) {
 				this.$("zml-group-id").value = value;
 			}
 		});
+		this.$("zml-group-id").addEventListener("input", () => {
+			// Typing an ID takes precedence over the list
+			this.$("zml-group-select").value = "";
+		});
+		this.$("zml-link").addEventListener("command", () => this.linkLibrary());
 		this.$("zml-sync-enabled").addEventListener("command", () => this.toggleSync());
+		this.$("zml-release").addEventListener("command", () => this.releaseGroup());
+
+		// File syncing
 		this.$("zml-file-mode").addEventListener("command", () => this.changeFileMode());
-		for (let id of ["zml-scheme"]) {
-			this.$(id).addEventListener("command", () => this.saveWebDAVFields());
-		}
+		this.$("zml-webdav-source").addEventListener("command", () => this.changeWebDAVSource());
+		this.$("zml-scheme").addEventListener("command", () => this.saveWebDAVFields());
 		for (let id of ["zml-url", "zml-username", "zml-password"]) {
 			this.$(id).addEventListener("change", () => this.saveWebDAVFields());
 		}
 		this.$("zml-verify").addEventListener("command", () => this.verifyServer());
 
-		// Keep the list in step with libraries created/renamed/deleted elsewhere
+		// Keep the lists in step with libraries created/renamed/deleted/downloaded elsewhere
 		this._notifierID = Zotero.Notifier.registerObserver({
 			notify: (action, type) => {
 				if (type == "group") {
@@ -91,10 +113,9 @@ window.ZoteroMultipleLibrariesPrefs = {
 		}
 	},
 
-	get library() {
-		return this._libraryID ? Zotero.Libraries.get(this._libraryID) : null;
-	},
-
+	//
+	// Libraries section
+	//
 	async refreshList() {
 		let menulist = this.$("zml-library");
 		let popup = menulist.menupopup || menulist.querySelector("menupopup");
@@ -110,53 +131,6 @@ window.ZoteroMultipleLibrariesPrefs = {
 		this.refreshAdoptableGroups();
 		let current = libraries.find(l => l.libraryID == this._libraryID);
 		await this.selectLibrary(current ? current.libraryID : (libraries[0] ? libraries[0].libraryID : null));
-	},
-
-	async selectLibrary(libraryID) {
-		this._libraryID = libraryID || null;
-		let menulist = this.$("zml-library");
-		menulist.value = libraryID ? String(libraryID) : "";
-		await this.render();
-	},
-
-	async render() {
-		const ZML = this.ZML;
-		let library = this.library;
-		let hasLibrary = !!library && ZML.Libraries.isManagedLibrary(library);
-		for (let id of ["zml-rename", "zml-delete"]) {
-			this.$(id).disabled = !hasLibrary;
-		}
-		this.$("zml-sync-box").hidden = !hasLibrary;
-		this.$("zml-file-box").hidden = !hasLibrary;
-		if (!hasLibrary) {
-			return;
-		}
-
-		let linked = ZML.Libraries.isLinkedLibrary(library);
-		this.$("zml-sync-status").textContent = linked
-			? this.getString("zml-prefs-status-linked", { groupID: String(library.groupID) })
-			: this.getString("zml-prefs-status-local");
-		this.$("zml-link-box").hidden = linked;
-		if (!linked) {
-			await this.refreshLinkableGroups();
-		}
-		this.$("zml-sync-enabled").hidden = !linked;
-		this.$("zml-sync-enabled").checked = linked && ZML.Libraries.isSyncEnabled(library);
-		this.$("zml-release-box").hidden = !linked;
-
-		this.$("zml-file-unavailable").hidden = linked;
-		this.$("zml-file-settings").hidden = !linked;
-		if (linked) {
-			let config = ZML.Settings.get(library.libraryID).fileSync;
-			this.$("zml-file-mode").value = config.mode || "zotero";
-			this.$("zml-webdav-box").hidden = config.mode != "webdav";
-			this.updateZoteroStorageNote(config.mode);
-			this.$("zml-scheme").value = config.scheme || "https";
-			this.$("zml-url").value = config.url || "";
-			this.$("zml-username").value = config.username || "";
-			this.$("zml-password").value = await ZML.Storage.getPassword(library.libraryID);
-			this.updateVerifyStatus();
-		}
 	},
 
 	/**
@@ -178,65 +152,10 @@ window.ZoteroMultipleLibrariesPrefs = {
 		this.$("zml-adopt-box").hidden = groups.length == 0;
 	},
 
-	async adoptGroup() {
-		let libraryID = parseInt(this.$("zml-adopt-select").value);
-		let library = libraryID ? Zotero.Libraries.get(libraryID) : null;
-		if (!library) {
-			return;
-		}
-		if (await this.ZML.UI.adoptGroup(window, library)) {
-			this._libraryID = library.libraryID;
-			await this.refreshList();
-		}
-	},
-
-	async releaseGroup() {
-		if (this.library && await this.ZML.UI.releaseGroup(window, this.library)) {
-			this._libraryID = null;
-			await this.refreshList();
-		}
-	},
-
-	/**
-	 * Empty, not yet managed group libraries (e.g., a group just created on
-	 * zotero.org and downloaded by sync) that can be linked without typing an ID
-	 */
-	async refreshLinkableGroups() {
-		let groups = await this.ZML.Libraries.getLinkableGroups();
-		let menulist = this.$("zml-group-select");
-		let popup = menulist.menupopup || menulist.querySelector("menupopup");
-		popup.replaceChildren();
-		let placeholder = document.createXULElement("menuitem");
-		placeholder.setAttribute("label", this.getString("zml-prefs-group-select-placeholder"));
-		placeholder.setAttribute("value", "");
-		popup.appendChild(placeholder);
-		for (let group of groups) {
-			let item = document.createXULElement("menuitem");
-			item.setAttribute("label", `${group.name} (${group.groupID})`);
-			item.setAttribute("value", String(group.groupID));
-			popup.appendChild(item);
-		}
-		menulist.value = "";
-		this.$("zml-group-select-box").hidden = groups.length == 0;
-	},
-
-	updateZoteroStorageNote(mode) {
-		let note = this.$("zml-zotero-note");
-		note.hidden = mode != "zotero";
-		if (mode == "zotero") {
-			let active = !!Zotero.Users.getCurrentUserID();
-			note.textContent = this.getString(active
-				? "zml-prefs-zotero-storage-note"
-				: "zml-prefs-zotero-storage-note-inactive");
-		}
-	},
-
-	updateVerifyStatus(text) {
-		if (text === undefined) {
-			let verified = this.ZML.Settings.get(this._libraryID).fileSync.verified;
-			text = this.getString(verified ? "zml-prefs-verified" : "zml-prefs-not-verified");
-		}
-		this.$("zml-verify-status").textContent = text;
+	async selectLibrary(libraryID) {
+		this._libraryID = libraryID || null;
+		this.$("zml-library").value = libraryID ? String(libraryID) : "";
+		await this.render();
 	},
 
 	async newLibrary() {
@@ -261,15 +180,164 @@ window.ZoteroMultipleLibrariesPrefs = {
 		}
 	},
 
+	async adoptGroup() {
+		let libraryID = parseInt(this.$("zml-adopt-select").value);
+		let library = libraryID ? Zotero.Libraries.get(libraryID) : null;
+		if (!library) {
+			return;
+		}
+		if (await this.ZML.UI.adoptGroup(window, library)) {
+			this._libraryID = library.libraryID;
+			await this.refreshList();
+		}
+	},
+
+	//
+	// Rendering of the selected library
+	//
+	async render() {
+		const ZML = this.ZML;
+		let library = this.library;
+		let hasLibrary = !!library && ZML.Libraries.isManagedLibrary(library);
+		for (let id of ["zml-rename", "zml-delete"]) {
+			this.$(id).disabled = !hasLibrary;
+		}
+		this.$("zml-sync-box").hidden = !hasLibrary;
+		this.$("zml-file-box").hidden = !hasLibrary;
+		if (!hasLibrary) {
+			return;
+		}
+
+		let linked = ZML.Libraries.isLinkedLibrary(library);
+		this.$("zml-sync-heading").textContent = this.getString("zml-prefs-sync-heading", { name: library.name });
+		this.$("zml-file-heading").textContent = this.getString("zml-prefs-file-heading", { name: library.name });
+
+		// Syncing
+		this.$("zml-sync-status").textContent = linked
+			? this.getString("zml-prefs-status-linked", { groupID: String(library.groupID) })
+			: this.getString("zml-prefs-status-local");
+		this.$("zml-link-box").hidden = linked;
+		this.$("zml-linked-box").hidden = !linked;
+		if (linked) {
+			this.$("zml-sync-enabled").checked = ZML.Libraries.isSyncEnabled(library);
+		}
+		else {
+			await this.refreshLinkableGroups();
+		}
+
+		// Files
+		this.$("zml-file-unavailable").hidden = linked;
+		this.$("zml-file-settings").hidden = !linked;
+		if (linked) {
+			await this.renderFileSettings();
+		}
+	},
+
+	/**
+	 * Empty, not yet managed group libraries (e.g., a group just created on
+	 * zotero.org and downloaded by sync) that can be chosen without typing an ID
+	 */
+	async refreshLinkableGroups() {
+		let groups = await this.ZML.Libraries.getLinkableGroups();
+		let menulist = this.$("zml-group-select");
+		let popup = menulist.menupopup || menulist.querySelector("menupopup");
+		popup.replaceChildren();
+		let placeholder = document.createXULElement("menuitem");
+		placeholder.setAttribute("label", this.getString("zml-prefs-group-select-placeholder"));
+		placeholder.setAttribute("value", "");
+		popup.appendChild(placeholder);
+		for (let group of groups) {
+			let item = document.createXULElement("menuitem");
+			item.setAttribute("label", `${group.name} (${group.groupID})`);
+			item.setAttribute("value", String(group.groupID));
+			popup.appendChild(item);
+		}
+		menulist.value = "";
+		this.$("zml-group-select-box").hidden = groups.length == 0;
+		this.$("zml-no-group-yet").hidden = groups.length > 0;
+	},
+
+	async renderFileSettings() {
+		const ZML = this.ZML;
+		let libraryID = this._libraryID;
+		let config = ZML.Settings.get(libraryID).fileSync;
+		let mode = ZML.Storage.MODES.includes(config.mode) ? config.mode : "zotero";
+		this.$("zml-file-mode").value = mode;
+
+		// Zotero storage
+		this.$("zml-zotero-note").hidden = mode != "zotero";
+		if (mode == "zotero") {
+			let active = !!Zotero.Users.getCurrentUserID();
+			this.$("zml-zotero-note").textContent = this.getString(active
+				? "zml-prefs-zotero-storage-note"
+				: "zml-prefs-zotero-storage-note-inactive");
+		}
+
+		// WebDAV
+		this.$("zml-webdav-box").hidden = mode != "webdav";
+		if (mode == "webdav") {
+			let mainAvailable = ZML.Storage.mainWebDAVAvailable();
+			let useMain = !!config.useMain && mainAvailable;
+			this.$("zml-webdav-main").disabled = !mainAvailable;
+			this.$("zml-webdav-source").value = useMain ? "main" : "custom";
+			this.$("zml-webdav-custom-box").hidden = useMain;
+			this.$("zml-scheme").value = config.scheme || "https";
+			this.$("zml-url").value = config.url || "";
+			this.$("zml-username").value = config.username || "";
+			this.$("zml-password").value = await ZML.Storage.getPassword(libraryID);
+			this.updateWebDAVFolder();
+			this.updateVerifyStatus();
+		}
+	},
+
+	/**
+	 * Where this library's files go on the WebDAV server
+	 */
+	updateWebDAVFolder() {
+		const ZML = this.ZML;
+		let config = ZML.Settings.get(this._libraryID).fileSync;
+		let text;
+		if (config.useMain && !ZML.Storage.mainWebDAVAvailable()) {
+			text = this.getString("zml-prefs-webdav-main-unavailable");
+		}
+		else {
+			let url = ZML.Storage.getDisplayRootURL(this._libraryID);
+			text = url
+				? this.getString("zml-prefs-webdav-folder", { url })
+				: this.getString("zml-prefs-webdav-folder-unknown");
+		}
+		this.$("zml-webdav-folder").textContent = text;
+	},
+
+	updateVerifyStatus(text) {
+		if (text === undefined) {
+			let verified = this.ZML.Settings.get(this._libraryID).fileSync.verified;
+			text = this.getString(verified ? "zml-prefs-verified" : "zml-prefs-not-verified");
+		}
+		this.$("zml-verify-status").textContent = text;
+	},
+
+	//
+	// Syncing actions
+	//
+	async syncNow() {
+		try {
+			await Zotero.Sync.Runner.sync();
+		}
+		catch (e) {
+			this.ZML.Util.error(e);
+		}
+	},
+
 	async linkLibrary() {
 		if (!this.library) {
 			return;
 		}
-		let result = await this.ZML.UI.linkLibrary(window, this.library, this.$("zml-group-id").value);
+		let groupID = this.$("zml-group-id").value.trim() || this.$("zml-group-select").value;
+		let result = await this.ZML.UI.linkLibrary(window, this.library, groupID);
 		if (result == "adopted") {
 			// The existing group was adopted instead; show it
-			let groupID = parseInt(String(this.$("zml-group-id").value).trim());
-			let adopted = Zotero.Groups.get(groupID);
+			let adopted = Zotero.Groups.get(parseInt(groupID));
 			if (adopted) {
 				this._libraryID = adopted.libraryID;
 			}
@@ -288,27 +356,70 @@ window.ZoteroMultipleLibrariesPrefs = {
 		}
 	},
 
+	async releaseGroup() {
+		if (this.library && await this.ZML.UI.releaseGroup(window, this.library)) {
+			this._libraryID = null;
+			await this.refreshList();
+		}
+	},
+
+	//
+	// File syncing actions
+	//
 	async changeFileMode() {
 		if (!this.library) {
 			return;
 		}
 		let mode = this.$("zml-file-mode").value;
 		let previous = this.ZML.Settings.get(this._libraryID).fileSync.mode;
+		if (mode == previous) {
+			return;
+		}
 		await this.ZML.Settings.update(this._libraryID, (c) => {
 			c.fileSync.mode = mode;
 		});
 		this.ZML.Storage.resetController(this._libraryID);
-		this.$("zml-webdav-box").hidden = mode != "webdav";
-		this.updateZoteroStorageNote(mode);
 		// Switching where files live: start the file sync history afresh so files
 		// present here are uploaded and missing ones fetched from the new place
-		if (mode != "none" && mode != previous) {
+		if (mode != "none") {
 			try {
 				await Zotero.Sync.Storage.Local.resetAllSyncStates(this._libraryID);
 			}
 			catch (e) {
 				this.ZML.Util.error(e);
 			}
+		}
+		await this.renderFileSettings();
+		if (mode == "webdav" && this.ZML.Settings.get(this._libraryID).fileSync.useMain
+				&& this.ZML.Storage.mainWebDAVAvailable()) {
+			await this.verifyServer({ silent: true });
+		}
+	},
+
+	async changeWebDAVSource() {
+		if (!this.library) {
+			return;
+		}
+		let useMain = this.$("zml-webdav-source").value == "main";
+		if (useMain && !this.ZML.Storage.mainWebDAVAvailable()) {
+			Services.prompt.alert(window, this.getString("zml-prefpane-label"),
+				this.getString("zml-prefs-webdav-main-unavailable"));
+			this.$("zml-webdav-source").value = "custom";
+			return;
+		}
+		let previous = !!this.ZML.Settings.get(this._libraryID).fileSync.useMain;
+		if (useMain == previous) {
+			return;
+		}
+		await this.ZML.Settings.update(this._libraryID, (c) => {
+			c.fileSync.useMain = useMain;
+			c.fileSync.verified = false;
+		});
+		this.ZML.Storage.resetController(this._libraryID);
+		await this.renderFileSettings();
+		if (useMain) {
+			// Creates the library's folder on My Library's server and checks it
+			await this.verifyServer({ silent: true });
 		}
 	},
 
@@ -317,7 +428,7 @@ window.ZoteroMultipleLibrariesPrefs = {
 	 */
 	_checkURL(url) {
 		const ZML = this.ZML;
-		let normalize = u => (u || "").trim().replace(/\/+$/, "").toLowerCase();
+		let normalize = u => (u || "").trim().replace(/^https?:\/\//i, "").replace(/\/+$/, "").toLowerCase();
 		let mine = normalize(url);
 		if (!mine) {
 			return true;
@@ -335,7 +446,13 @@ window.ZoteroMultipleLibrariesPrefs = {
 				continue;
 			}
 			let config = ZML.Settings.get(other.libraryID).fileSync;
-			if (config.mode == "webdav" && normalize(config.url) == mine) {
+			if (config.mode != "webdav") {
+				continue;
+			}
+			let otherURL = config.useMain
+				? (ZML.Storage.getDisplayRootURL(other.libraryID) || "").replace(/\/zotero\/?$/, "")
+				: config.url;
+			if (normalize(otherURL) == mine) {
 				Services.prompt.alert(window, this.getString("zml-prefpane-label"),
 					this.getString("zml-error-url-same-as-other", { name: other.name }));
 				return false;
@@ -345,7 +462,8 @@ window.ZoteroMultipleLibrariesPrefs = {
 	},
 
 	/**
-	 * Persist URL/scheme/username/password; any change unverifies the server
+	 * Persist URL/scheme/username/password of a custom server; any change
+	 * unverifies the server
 	 *
 	 * @return {Boolean} - False if a value was rejected
 	 */
@@ -378,19 +496,21 @@ window.ZoteroMultipleLibrariesPrefs = {
 		await ZML.Storage.setPassword(libraryID, username, password);
 		ZML.Storage.resetController(libraryID);
 		this.$("zml-url").value = url;
+		this.updateWebDAVFolder();
 		this.updateVerifyStatus();
 		return true;
 	},
 
-	async verifyServer() {
+	async verifyServer({ silent = false } = {}) {
 		if (!this.library) {
-			return;
-		}
-		if (!(await this.saveWebDAVFields())) {
-			return;
+			return false;
 		}
 		const ZML = this.ZML;
 		let libraryID = this._libraryID;
+		let useMain = !!ZML.Settings.get(libraryID).fileSync.useMain;
+		if (!useMain && !(await this.saveWebDAVFields())) {
+			return false;
+		}
 		let button = this.$("zml-verify");
 		button.disabled = true;
 		this.updateVerifyStatus(this.getString("zml-prefs-verifying"));
@@ -414,13 +534,14 @@ window.ZoteroMultipleLibrariesPrefs = {
 			button.disabled = false;
 		}
 		this.updateVerifyStatus();
-		if (success) {
+		if (success && !silent) {
 			Zotero.alert(
 				window,
 				Zotero.getString("sync.storage.serverConfigurationVerified"),
 				Zotero.getString("sync.storage.fileSyncSetUp")
 			);
 		}
+		return success;
 	},
 };
 

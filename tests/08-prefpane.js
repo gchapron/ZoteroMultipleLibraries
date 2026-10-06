@@ -40,7 +40,8 @@ out.pane = {
 	syncCheckboxVisible: !$("zml-sync-enabled").hidden,
 	fileUnavailableVisible: !$("zml-file-unavailable").hidden,
 	fileSettingsVisible: !$("zml-file-settings").hidden,
-	linkButtonLabel: $("zml-link").getAttribute("label"),
+	enableSyncLabel: $("zml-link").getAttribute("label"),
+	stepsVisible: !$("zml-open-groups").hidden && !$("zml-sync-now").hidden,
 	selectPrefCleared: ZML.Util.getPref("selectLibrary"),
 };
 

@@ -25,6 +25,9 @@ ZoteroMultipleLibraries.Settings = {
 				// webdav: this library's own WebDAV server
 				// none: never sync this library's files
 				mode: "zotero",
+				// webdav: reuse My Library's WebDAV server and account (in a
+				// subfolder of its own) instead of the custom server below
+				useMain: false,
 				scheme: "https",
 				url: "",
 				username: "",

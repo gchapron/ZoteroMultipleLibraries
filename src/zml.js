@@ -56,6 +56,7 @@ var ZoteroMultipleLibraries = {
 			pluginID: id,
 			src: rootURI + "content/preferences.xhtml",
 			scripts: [rootURI + "content/preferences.js"],
+			stylesheets: [rootURI + "content/preferences.css"],
 			label: this.Util.getString("zml-prefpane-label"),
 			image: "chrome://zotero/skin/16/universal/library.svg",
 		});

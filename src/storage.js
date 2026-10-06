@@ -20,6 +20,9 @@
 ZoteroMultipleLibraries.Storage = {
 	MODES: ["zotero", "webdav", "none"],
 	LOGIN_HOST: "chrome://zotero",
+	// Subfolder of My Library's WebDAV folder holding extra libraries that reuse
+	// its server: <main URL>/ZoteroMultipleLibraries/<groupID>/zotero/
+	MAIN_SUBFOLDER: "ZoteroMultipleLibraries",
 
 	LibraryWebDAV: null,
 	_classes: new Map(), // libraryID -> constructor
@@ -97,6 +100,47 @@ ZoteroMultipleLibraries.Storage = {
 
 	isWebDAVLibrary(libraryID) {
 		return this.getFileSyncMode(libraryID) == "webdav";
+	},
+
+	/**
+	 * Whether My Library syncs its files to a WebDAV server that extra
+	 * libraries could reuse (URL and username set; the password is asked from
+	 * Zotero's own WebDAV code at sync time and never copied)
+	 */
+	mainWebDAVAvailable() {
+		return Zotero.Prefs.get("sync.storage.protocol") == "webdav"
+			&& !!Zotero.Prefs.get("sync.storage.url")
+			&& !!Zotero.Prefs.get("sync.storage.username");
+	},
+
+	_mainParentURL(libraryID) {
+		let url = (Zotero.Prefs.get("sync.storage.url") || "").trim().replace(/\/+$/, "");
+		let library = Zotero.Libraries.get(libraryID);
+		if (!url || !library) {
+			return null;
+		}
+		return url + "/" + this.MAIN_SUBFOLDER + "/" + library.groupID + "/";
+	},
+
+	/**
+	 * The folder a library's files go to, without credentials, for display
+	 *
+	 * @return {String|null}
+	 */
+	getDisplayRootURL(libraryID) {
+		let config = ZoteroMultipleLibraries.Settings.get(libraryID).fileSync;
+		if (config.useMain) {
+			if (!this.mainWebDAVAvailable()) {
+				return null;
+			}
+			let scheme = Zotero.Prefs.get("sync.storage.scheme") || "https";
+			return scheme + "://" + this._mainParentURL(libraryID) + "zotero/";
+		}
+		if (!config.url) {
+			return null;
+		}
+		let url = config.url.replace(/\/+$/, "");
+		return (config.scheme || "https") + "://" + url + "/zotero/";
 	},
 
 	/**
@@ -219,12 +263,26 @@ ZoteroMultipleLibraries.Storage = {
 
 			username: {
 				get() {
+					if (this.usesMain) {
+						return Zotero.Prefs.get("sync.storage.username") || "";
+					}
 					return ZML.Settings.get(this.libraryID).fileSync.username || "";
+				},
+			},
+
+			usesMain: {
+				get() {
+					return !!ZML.Settings.get(this.libraryID).fileSync.useMain;
 				},
 			},
 		});
 
 		LibraryWebDAV.prototype.getPassword = async function () {
+			if (this.usesMain) {
+				// Zotero's own WebDAV code owns that password (and its encryption);
+				// ask it at sync time rather than keeping a copy
+				return Zotero.Sync.Runner.getStorageController("webdav").getPassword();
+			}
 			return ZML.Storage.getPassword(this.libraryID);
 		};
 
@@ -243,6 +301,10 @@ ZoteroMultipleLibraries.Storage = {
 			this._parentURI = false;
 
 			let { scheme, url } = ZML.Settings.get(this.libraryID).fileSync;
+			if (this.usesMain) {
+				scheme = Zotero.Prefs.get("sync.storage.scheme");
+				url = ZML.Storage._mainParentURL(this.libraryID);
+			}
 			if (scheme != "http" && scheme != "https") {
 				throw new Error("Invalid WebDAV scheme '" + scheme + "'");
 			}
@@ -273,6 +335,34 @@ ZoteroMultipleLibraries.Storage = {
 			}
 			this._rootURI = Services.io.newURI(spec + "zotero/");
 			Zotero.HTTP.CookieBlocker.addURL(this._rootURI.spec);
+		};
+
+		// When reusing My Library's server, the library's folders are ours to
+		// create (the user never typed that path), so create them before Zotero's
+		// usual checks; for a custom URL keep Zotero's behaviour (ask first)
+		LibraryWebDAV.prototype.checkServer = async function (options = {}) {
+			if (this.usesMain) {
+				await this._init();
+				let io = Services.io;
+				let parent = this.parentURI.spec; // …/ZoteroMultipleLibraries/<groupID>/
+				let base = parent.replace(/[^/]+\/$/, ""); // …/ZoteroMultipleLibraries/
+				for (let spec of [base, parent, this.rootURI.spec]) {
+					try {
+						await Zotero.HTTP.request("MKCOL", io.newURI(spec), {
+							// 201 created; 405 (Apache), 301/302 or 409 on servers where it
+							// already exists one way or another
+							successCodes: [201, 301, 302, 405, 409],
+							errorDelayMax: 0,
+						});
+					}
+					catch (e) {
+						// Let Zotero's own verification report the problem
+						Zotero.debug("ZoteroMultipleLibraries: MKCOL failed for " + Zotero.HTTP.getDisplayURI(io.newURI(spec), true).spec + ": " + e);
+						break;
+					}
+				}
+			}
+			return Base.prototype.checkServer.call(this, options);
 		};
 
 		// Zotero's handler writes the global "verified" pref in one branch; keep

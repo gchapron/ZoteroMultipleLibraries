@@ -1,0 +1,26 @@
+/* ZoteroMultipleLibraries preferences pane */
+
+#zml-prefs-root .zml-hint {
+	color: var(--fill-secondary, GrayText);
+}
+
+#zml-prefs-root .zml-indent {
+	margin-inline-start: 24px;
+}
+
+#zml-prefs-root .zml-steps > hbox {
+	margin-block: 3px;
+}
+
+#zml-prefs-root .zml-step {
+	min-width: 20em;
+}
+
+#zml-prefs-root #zml-sync-status,
+#zml-prefs-root #zml-verify-status {
+	font-weight: 600;
+}
+
+#zml-prefs-root groupbox > label > h2 {
+	margin-bottom: 4px;
+}
