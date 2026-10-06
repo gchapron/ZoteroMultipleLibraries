@@ -61,6 +61,9 @@ ZoteroMultipleLibraries.Core = {
 				}
 				else if (action == "delete") {
 					Libraries.unskip(id);
+					// The tree removes the library's rows itself; rebuild it so the
+					// separator we added in front of them goes too
+					ZoteroMultipleLibraries.Tree.reloadAll().catch(e => ZoteroMultipleLibraries.Util.error(e));
 				}
 			}
 		},

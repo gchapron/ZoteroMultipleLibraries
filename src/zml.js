@@ -16,6 +16,8 @@ var ZoteroMultipleLibraries = {
 		"util.js",
 		"libraries.js",
 		"core.js",
+		"tree.js",
+		"ui.js",
 	],
 
 	_windows: new Set(),
@@ -41,6 +43,7 @@ var ZoteroMultipleLibraries = {
 		// Make sure Zotero core never syncs local libraries, even without us
 		this.Libraries.ensureAllSkipped();
 		this.Core.init();
+		this.UI.init();
 
 		// Windows that are already open don't get onMainWindowLoad
 		for (let win of Zotero.getMainWindows()) {
@@ -58,11 +61,14 @@ var ZoteroMultipleLibraries = {
 		this._windows.add(window);
 		// Make our Fluent strings available to this window's document
 		window.MozXULElement.insertFTLIfNeeded("zotero-multiple-libraries.ftl");
+		this.UI.attachWindow(window);
+		this.Tree.attach(window).catch(e => this.Util.error(e));
 		this.Util.log("attached to main window");
 	},
 
 	onMainWindowUnload(window) {
 		this._windows.delete(window);
+		this.Tree.forget(window);
 	},
 
 	async shutdown(reason) {
@@ -70,8 +76,11 @@ var ZoteroMultipleLibraries = {
 		for (let win of Array.from(this._windows)) {
 			this.onMainWindowUnload(win);
 		}
+		this.UI.uninit();
 		this.Core.uninit();
 		this.Util.Patches.unwrapAll();
+		// With the patches gone, redraw so local libraries show under Group Libraries
+		await this.Tree.detachAll();
 		if (Zotero.MultipleLibraries === this) {
 			delete Zotero.MultipleLibraries;
 		}
