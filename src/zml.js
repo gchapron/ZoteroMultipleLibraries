@@ -1,6 +1,6 @@
 /* global Zotero, Services */
 /*
- * Zotero Multiple Libraries — main object
+ * ZoteroMultipleLibraries — main object
  *
  * Loaded by bootstrap.js. Sub-modules (src/*.js) attach themselves to this object.
  */

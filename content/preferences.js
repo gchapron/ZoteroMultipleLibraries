@@ -1,6 +1,6 @@
 /* global Zotero, Services, window, document, MozXULElement */
 /*
- * Preferences pane: Zotero → Settings → Multiple Libraries
+ * Preferences pane: Zotero → Settings → ZoteroMultipleLibraries
  *
  * Loaded by Zotero into a sandbox whose prototype is the preferences window,
  * before the pane markup (content/preferences.xhtml) is inserted.

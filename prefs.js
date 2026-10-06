@@ -1,4 +1,4 @@
-// Default preferences for Zotero Multiple Libraries
+// Default preferences for ZoteroMultipleLibraries
 // (loaded by Zotero into the default preference branch at plugin startup)
 
 // Draw a thin separator line between libraries in the collection tree

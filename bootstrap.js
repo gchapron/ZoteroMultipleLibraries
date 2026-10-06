@@ -1,6 +1,6 @@
 /* global Zotero, Services, APP_SHUTDOWN */
 /*
- * Zotero Multiple Libraries — bootstrap
+ * ZoteroMultipleLibraries — bootstrap
  *
  * Zotero calls these functions (see Zotero.Plugins in Zotero's xpcom/plugins.js).
  * All real work lives in src/, loaded into this sandbox with loadSubScript so that

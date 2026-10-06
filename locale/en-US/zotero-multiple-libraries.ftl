@@ -1,7 +1,7 @@
-## Zotero Multiple Libraries — English (US)
+## ZoteroMultipleLibraries — English (US)
 ## Message IDs are prefixed with "zml-" to avoid clashes with Zotero's own strings.
 
-zml-plugin-name = Zotero Multiple Libraries
+zml-plugin-name = ZoteroMultipleLibraries
 
 ## Menus
 
@@ -49,7 +49,7 @@ zml-delete-linked-library-text =
 
 ## Preferences pane
 
-zml-prefpane-label = Multiple Libraries
+zml-prefpane-label = ZoteroMultipleLibraries
 zml-prefs-libraries-heading = Libraries
 zml-prefs-library-label =
     .value = Library:

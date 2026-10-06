@@ -217,7 +217,7 @@ For a linked library whose file mode is WebDAV the plugin therefore:
   bound to that library: a subclass of `Zotero.Sync.Storage.Mode.WebDAV`
   whose `verified` flag, username, scheme and URL come from the library's
   settings row, whose password lives in the login manager under the realm
-  `Zotero Multiple Libraries WebDAV L<libraryID>`, and whose `_init()` builds
+  `ZoteroMultipleLibraries WebDAV L<libraryID>`, and whose `_init()` builds
   the URIs from those values. Everything else (verification, `.prop`/`.zip`
   upload and download, purging) is Zotero's code unchanged.
 

@@ -1,4 +1,4 @@
-# Zotero Multiple Libraries
+# ZoteroMultipleLibraries
 
 A Zotero plugin that gives you several personal libraries in one Zotero,
 side by side in the collection tree: "My Library", "Personal Reading",
@@ -41,7 +41,7 @@ Requires Zotero 10 (developed and tested on 10.0.4).
   confirmation; deletes the library, its items, and attachment files stored in
   Zotero).
 - **Settings**: right-click the library → Library Settings…, or Settings →
-  Multiple Libraries.
+  ZoteroMultipleLibraries.
 - Everything else is plain Zotero: create collections and saved searches in
   the library, drag items between libraries, import files into it, save from
   the browser connector while it is selected, cite from it in Word.
@@ -62,7 +62,7 @@ So:
 1. On zotero.org, create a group (Groups → Create a New Group), private,
    members only. Note the number in its web address, e.g.
    `https://www.zotero.org/groups/1234567/teaching` → `1234567`.
-2. In Zotero: Settings → Multiple Libraries, select the library, enter the
+2. In Zotero: Settings → ZoteroMultipleLibraries, select the library, enter the
    group ID, click Link to Group and confirm.
 3. Sync. Zotero's own sync uploads the library's content to that group and
    takes the group's name and permissions from zotero.org. From then on it

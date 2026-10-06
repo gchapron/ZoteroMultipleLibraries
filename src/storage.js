@@ -137,7 +137,7 @@ ZoteroMultipleLibraries.Storage = {
 	// Credentials: one login-manager entry per library, under a realm of our own
 	//
 	loginRealm(libraryID) {
-		return "Zotero Multiple Libraries WebDAV L" + libraryID;
+		return "ZoteroMultipleLibraries WebDAV L" + libraryID;
 	},
 
 	async getPassword(libraryID) {
