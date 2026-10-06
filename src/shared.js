@@ -12,11 +12,79 @@
  * Another computer that syncs the group then adopts it automatically with the
  * same choice (a custom server's password still has to be entered there), and
  * later changes made on any computer propagate to the others.
+ *
+ * The setting's name: zotero.org only accepts a fixed list of setting names
+ * plus a few per-item patterns, and rejects anything else with "Invalid
+ * setting". Of those, lastReadAloudPosition_g<groupID>_<itemKey> takes an
+ * arbitrary object as value, and Zotero's client only ever reads such a
+ * setting for the item with that key. With a fixed pseudo key that no item can
+ * have (item keys are random), the slot is unused by everything else, so the
+ * marker is stored there.
  */
 
 ZoteroMultipleLibraries.Shared = {
-	KEY: "zoteroMultipleLibraries",
+	// Setting names zotero.org rejected in 0.2.1; purged at startup
+	LEGACY_KEY: "zoteroMultipleLibraries",
+	PSEUDO_ITEM_KEY: "ZMLSETTG",
 	VERSION: 1,
+
+	/**
+	 * Name of the group's synced setting holding the marker
+	 */
+	key(libraryID) {
+		let library = Zotero.Libraries.get(libraryID);
+		if (!library || library.libraryType != "group") {
+			return null;
+		}
+		return "lastReadAloudPosition_g" + library.groupID + "_" + this.PSEUDO_ITEM_KEY;
+	},
+
+	isKey(key) {
+		return typeof key == "string"
+			&& key.startsWith("lastReadAloudPosition_g")
+			&& key.endsWith("_" + this.PSEUDO_ITEM_KEY);
+	},
+
+	/**
+	 * Remove the settings rows 0.2.1 created under a name zotero.org rejects;
+	 * every sync retried them and failed. Direct SQL so that nothing is queued
+	 * for upload or deletion again.
+	 */
+	async purgeLegacy() {
+		const ZML = ZoteroMultipleLibraries;
+		try {
+			let libraryIDs = await Zotero.DB.columnQueryAsync(
+				"SELECT DISTINCT libraryID FROM syncedSettings WHERE setting=?", this.LEGACY_KEY
+			);
+			let deleteLogIDs = await Zotero.DB.columnQueryAsync(
+				"SELECT DISTINCT libraryID FROM syncDeleteLog WHERE key=? AND syncObjectTypeID IN "
+				+ "(SELECT syncObjectTypeID FROM syncObjectTypes WHERE name='setting')",
+				this.LEGACY_KEY
+			);
+			if (!libraryIDs.length && !deleteLogIDs.length) {
+				return 0;
+			}
+			await Zotero.DB.executeTransaction(async () => {
+				await Zotero.DB.queryAsync("DELETE FROM syncedSettings WHERE setting=?", this.LEGACY_KEY);
+				await Zotero.DB.queryAsync(
+					"DELETE FROM syncDeleteLog WHERE key=? AND syncObjectTypeID IN "
+					+ "(SELECT syncObjectTypeID FROM syncObjectTypes WHERE name='setting')",
+					this.LEGACY_KEY
+				);
+			});
+			for (let libraryID of libraryIDs) {
+				if (Zotero.Libraries.exists(libraryID)) {
+					await Zotero.SyncedSettings.loadAll(libraryID);
+				}
+			}
+			ZML.Util.log(`purged legacy shared-settings rows (${libraryIDs.length} libraries)`);
+			return libraryIDs.length + deleteLogIDs.length;
+		}
+		catch (e) {
+			ZML.Util.error(e);
+			return 0;
+		}
+	},
 
 	_notifierID: null,
 
@@ -37,7 +105,11 @@ ZoteroMultipleLibraries.Shared = {
 	 * The marker stored in the group's synced settings, or null
 	 */
 	read(libraryID) {
-		let value = Zotero.SyncedSettings.get(libraryID, this.KEY);
+		let key = this.key(libraryID);
+		if (!key) {
+			return null;
+		}
+		let value = Zotero.SyncedSettings.get(libraryID, key);
 		if (!value || typeof value != "object" || !value.extraLibrary) {
 			return null;
 		}
@@ -90,14 +162,15 @@ ZoteroMultipleLibraries.Shared = {
 		if (current && JSON.stringify(this._normalize(current)) == JSON.stringify(this._normalize(value))) {
 			return false;
 		}
-		await Zotero.SyncedSettings.set(libraryID, this.KEY, value);
+		await Zotero.SyncedSettings.set(libraryID, this.key(libraryID), value);
 		ZML.Util.log(`published shared settings for library ${libraryID}`);
 		return true;
 	},
 
 	async unpublish(libraryID) {
-		if (Zotero.SyncedSettings.get(libraryID, this.KEY) !== null) {
-			await Zotero.SyncedSettings.clear(libraryID, this.KEY);
+		let key = this.key(libraryID);
+		if (key && Zotero.SyncedSettings.get(libraryID, key) !== null) {
+			await Zotero.SyncedSettings.clear(libraryID, key);
 			ZoteroMultipleLibraries.Util.log(`removed shared settings of library ${libraryID}`);
 		}
 	},
@@ -188,7 +261,7 @@ ZoteroMultipleLibraries.Shared = {
 			const Shared = ZoteroMultipleLibraries.Shared;
 			for (let id of ids) {
 				let [libraryID, key] = String(id).split("/");
-				if (key != Shared.KEY) {
+				if (!Shared.isKey(key)) {
 					continue;
 				}
 				Shared._onSettingChanged(parseInt(libraryID), action)

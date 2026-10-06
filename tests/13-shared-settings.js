@@ -4,7 +4,7 @@
 // "Another computer" is simulated by writing the marker into a group's synced
 // settings the way Zotero's sync would after downloading it.
 const ZML = Zotero.MultipleLibraries;
-const KEY = ZML.Shared.KEY;
+const keyOf = lib => ZML.Shared.key(lib.libraryID);
 const IDS = { source: 7654327, withMarker: 7654328, withoutMarker: 7654329 };
 let out = {};
 
@@ -35,7 +35,8 @@ let makeGroup = async (id, name) => {
 // --- First computer: linking publishes the marker; file settings changes update it
 let source = await ZML.Libraries.create("Source Library");
 await ZML.Libraries.linkToGroup(source, IDS.source);
-out.afterLink = Zotero.SyncedSettings.get(source.libraryID, KEY);
+out.afterLink = Zotero.SyncedSettings.get(source.libraryID, keyOf(source));
+out.keyName = keyOf(source);
 await ZML.Settings.update(source.libraryID, (c) => {
 	c.fileSync.mode = "webdav";
 	c.fileSync.scheme = "http";
@@ -44,13 +45,13 @@ await ZML.Settings.update(source.libraryID, (c) => {
 });
 await ZML.Storage.setPassword(source.libraryID, "zml", "zml-test-password");
 await ZML.Shared.publish(source.libraryID);
-let marker = Zotero.SyncedSettings.get(source.libraryID, KEY);
-out.published = { marker, noPassword: !JSON.stringify(marker).includes("zml-test-password"), unsynced: Object.keys((await Zotero.SyncedSettings.getUnsynced(source.libraryID)) || {}).includes(KEY) };
+let marker = Zotero.SyncedSettings.get(source.libraryID, keyOf(source));
+out.published = { marker, noPassword: !JSON.stringify(marker).includes("zml-test-password"), unsynced: Object.keys((await Zotero.SyncedSettings.getUnsynced(source.libraryID)) || {}).includes(keyOf(source)) };
 out.publishIdempotent = !(await ZML.Shared.publish(source.libraryID));
 
 // --- Second computer: a group arrives with the marker → adopted automatically with the same choice
 let withMarker = await makeGroup(IDS.withMarker, "Arrived With Marker");
-await Zotero.SyncedSettings.set(withMarker.libraryID, KEY, marker, 5, true);
+await Zotero.SyncedSettings.set(withMarker.libraryID, keyOf(withMarker), marker, 5, true);
 for (let i = 0; i < 50; i++) {
 	await Zotero.Promise.delay(100);
 	if (ZML.Libraries.isLinkedLibrary(withMarker)
@@ -92,7 +93,7 @@ out.pane = {
 // A change made elsewhere propagates
 let changed = JSON.parse(JSON.stringify(marker));
 changed.fileSync.url = "127.0.0.1:8089/shared-b/";
-await Zotero.SyncedSettings.set(withMarker.libraryID, KEY, changed, 6, true);
+await Zotero.SyncedSettings.set(withMarker.libraryID, keyOf(withMarker), changed, 6, true);
 for (let i = 0; i < 50; i++) {
 	await Zotero.Promise.delay(100);
 	if (ZML.Settings.get(withMarker.libraryID).fileSync.url == changed.fileSync.url
@@ -113,23 +114,23 @@ out.withoutMarker = {
 	fileSyncModeReported: ZML.Storage.getFileSyncMode(withoutMarker.libraryID),
 	paneRadioSelected: doc.getElementById("zml-file-mode").selectedIndex,
 	deliberateNoteVisible: !doc.getElementById("zml-file-deliberate-note").hidden,
-	markerAbsent: Zotero.SyncedSettings.get(withoutMarker.libraryID, KEY) === null,
+	markerAbsent: Zotero.SyncedSettings.get(withoutMarker.libraryID, keyOf(withoutMarker)) === null,
 };
 // Choosing in the pane publishes
 doc.getElementById("zml-file-mode").value = "zotero";
 await prefWin.ZoteroMultipleLibrariesPrefs.changeFileMode();
 await Zotero.Promise.delay(200);
-out.choiceShared = { marker: Zotero.SyncedSettings.get(withoutMarker.libraryID, KEY), enabled: Zotero.Sync.Storage.Local.getEnabledForLibrary(withoutMarker.libraryID) };
+out.choiceShared = { marker: Zotero.SyncedSettings.get(withoutMarker.libraryID, keyOf(withoutMarker)), enabled: Zotero.Sync.Storage.Local.getEnabledForLibrary(withoutMarker.libraryID) };
 prefWin.close();
 
 // Release: marker removed, tombstone prevents re-adoption until adopted by hand
 await ZML.Libraries.releaseGroup(withMarker);
 out.released = {
 	managed: ZML.Libraries.isManagedLibrary(withMarker),
-	markerGone: Zotero.SyncedSettings.get(withMarker.libraryID, KEY) === null,
+	markerGone: Zotero.SyncedSettings.get(withMarker.libraryID, keyOf(withMarker)) === null,
 	tombstone: ZML.Settings.get(withMarker.libraryID).released,
 };
-await Zotero.SyncedSettings.set(withMarker.libraryID, KEY, marker, 7, true);
+await Zotero.SyncedSettings.set(withMarker.libraryID, keyOf(withMarker), marker, 7, true);
 await Zotero.Promise.delay(500);
 out.notReadopted = !ZML.Libraries.isManagedLibrary(withMarker);
 await ZML.Libraries.adoptGroup(withMarker);
@@ -140,12 +141,25 @@ ZML.Shared.uninit();
 let g = Zotero.Groups.get(IDS.withMarker);
 await ZML.Libraries.releaseGroup(g);
 await ZML.Settings.update(g.libraryID, (c) => { c.released = false; });
-await Zotero.SyncedSettings.set(g.libraryID, KEY, marker, 8, true);
+await Zotero.SyncedSettings.set(g.libraryID, keyOf(g), marker, 8, true);
 await Zotero.Promise.delay(200);
 out.beforeScan = ZML.Libraries.isManagedLibrary(g);
 await ZML.Shared.scanAll();
 out.afterScan = ZML.Libraries.isLinkedLibrary(g);
 ZML.Shared.init();
+
+// Legacy rows from 0.2.1 (a setting name zotero.org rejects) are purged, including pending deletions
+await Zotero.DB.queryAsync("INSERT OR REPLACE INTO syncedSettings (setting, libraryID, value, version, synced) VALUES (?, ?, ?, 0, 0)", [ZML.Shared.LEGACY_KEY, source.libraryID, JSON.stringify({ extraLibrary: true })]);
+await Zotero.DB.queryAsync("INSERT OR REPLACE INTO syncDeleteLog (syncObjectTypeID, libraryID, key, dateDeleted) VALUES ((SELECT syncObjectTypeID FROM syncObjectTypes WHERE name='setting'), ?, ?, CURRENT_TIMESTAMP)", [g.libraryID, ZML.Shared.LEGACY_KEY]);
+await Zotero.SyncedSettings.loadAll(source.libraryID);
+out.legacyBefore = { unsynced: Object.keys((await Zotero.SyncedSettings.getUnsynced(source.libraryID)) || {}), deleteLog: await Zotero.DB.valueQueryAsync("SELECT COUNT(*) FROM syncDeleteLog WHERE key=?", ZML.Shared.LEGACY_KEY) };
+await ZML.Shared.purgeLegacy();
+out.legacyAfter = {
+	rows: await Zotero.DB.valueQueryAsync("SELECT COUNT(*) FROM syncedSettings WHERE setting=?", ZML.Shared.LEGACY_KEY),
+	deleteLog: await Zotero.DB.valueQueryAsync("SELECT COUNT(*) FROM syncDeleteLog WHERE key=?", ZML.Shared.LEGACY_KEY),
+	unsynced: Object.keys((await Zotero.SyncedSettings.getUnsynced(source.libraryID)) || {}),
+	markerStillThere: Zotero.SyncedSettings.get(source.libraryID, keyOf(source)) !== null,
+};
 
 // Cleanup
 await ZML.Libraries.erase(source);

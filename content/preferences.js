@@ -84,10 +84,14 @@ window.ZoteroMultipleLibrariesPrefs = {
 				}
 				else if (type == "setting" && this._libraryID) {
 					// Shared settings arrived for the selected library
-					let key = this.ZML.Shared.KEY;
-					if (ids.some(id => String(id) == this._libraryID + "/" + key)) {
+					let key = this.ZML.Shared.key(this._libraryID);
+					if (key && ids.some(id => String(id) == this._libraryID + "/" + key)) {
 						// Give the plugin's own handler time to apply them first
-						window.setTimeout(() => this.render(), 500);
+						window.setTimeout(() => {
+							if (!window.closed) {
+								this.render();
+							}
+						}, 500);
 					}
 				}
 			},

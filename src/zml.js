@@ -55,6 +55,7 @@ var ZoteroMultipleLibraries = {
 		this.Tree.startWindowWatcher();
 
 		// Libraries made extra libraries on another computer, shared settings
+		await this.Shared.purgeLegacy();
 		await this.Shared.scanAll();
 		this.Storage.scheduleQuietVerification();
 
