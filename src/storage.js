@@ -41,16 +41,17 @@ ZoteroMultipleLibraries.Storage = {
 
 		Patches.wrap(Local, "getEnabledForLibrary", original => function (libraryID) {
 			let mode = ZML.Storage.getFileSyncMode(libraryID);
+			if (mode === null) {
+				return original.call(this, libraryID);
+			}
 			if (mode == "none") {
 				return false;
 			}
-			if (mode == "webdav") {
-				// Zotero's own rule: no file syncing before the account has synced once
-				return !!Zotero.Users.getCurrentUserID();
-			}
-			// "zotero" or not managed: Zotero's normal rule for group libraries (the
-			// Sync preference for group files)
-			return original.call(this, libraryID);
+			// "zotero" or "webdav": the per-library choice is authoritative. In
+			// particular, an extra library's files sync through Zotero storage even
+			// when Zotero's Sync preference for group files is off. Zotero's own
+			// rule still applies: no file syncing before the account has synced once.
+			return !!Zotero.Users.getCurrentUserID();
 		});
 
 		Patches.wrap(Local, "getClassForLibrary", original => function (libraryID) {

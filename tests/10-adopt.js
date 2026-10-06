@@ -77,6 +77,17 @@ out.linkFlow = {
 await ZML.Settings.update(group.libraryID, c => { c.fileSync.mode = "none"; });
 out.noneDisables = !Zotero.Sync.Storage.Local.getEnabledForLibrary(group.libraryID);
 await ZML.Settings.update(group.libraryID, c => { c.fileSync.mode = "zotero"; });
+// Extra libraries sync files regardless of Zotero's group-files preference
+let groupsPref = Zotero.Prefs.get("sync.storage.groups.enabled");
+Zotero.Prefs.set("sync.storage.groups.enabled", false);
+let plainGroup = new Zotero.Group({ groupID: 7654325, name: "Plain Group", description: "", version: 1, editable: true, filesEditable: true });
+await plainGroup.saveTx();
+out.groupsPrefOff = {
+	extraLibraryEnabled: Zotero.Sync.Storage.Local.getEnabledForLibrary(group.libraryID),
+	plainGroupEnabled: Zotero.Sync.Storage.Local.getEnabledForLibrary(plainGroup.libraryID),
+};
+Zotero.Prefs.set("sync.storage.groups.enabled", groupsPref);
+await plainGroup.eraseTx();
 
 // Pane: adopted library selectable, release button visible; adopt box hidden when nothing to adopt
 ZML.UI.openSettings(window, group);

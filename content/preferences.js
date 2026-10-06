@@ -224,10 +224,10 @@ window.ZoteroMultipleLibrariesPrefs = {
 		let note = this.$("zml-zotero-note");
 		note.hidden = mode != "zotero";
 		if (mode == "zotero") {
-			let on = !!Zotero.Prefs.get("sync.storage.groups.enabled");
-			note.textContent = this.getString("zml-prefs-zotero-storage-note", {
-				state: this.getString(on ? "zml-prefs-state-on" : "zml-prefs-state-off"),
-			});
+			let active = !!Zotero.Users.getCurrentUserID();
+			note.textContent = this.getString(active
+				? "zml-prefs-zotero-storage-note"
+				: "zml-prefs-zotero-storage-note-inactive");
 		}
 	},
 
