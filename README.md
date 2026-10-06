@@ -78,23 +78,25 @@ So:
 
 **Attachment files** of a linked library can go to one of:
 
-- *Don't sync files* (default after linking);
-- *Zotero storage*, the normal group behaviour (counts against the group
-  owner's Zotero storage quota);
+- *Zotero storage*, the normal group behaviour and the default: files follow
+  Zotero's Sync setting for group files and count against the group owner's
+  Zotero storage quota;
 - *WebDAV*, with the library's own URL, username, and password, verified with
   Verify Server. Zotero stores the files in a `zotero` subfolder of that URL,
   so give each library its own folder; the pane refuses the folder My Library
   uses or one already used by another extra library. The password is kept in
   Zotero's login manager under a realm specific to that library. Your Zotero
   account credentials and your existing WebDAV settings are never read or
-  changed by the plugin.
+  changed by the plugin;
+- *Don't sync files*.
 
 **On another computer**, do not create or link anything: after a sync the
 group is already there, under "Group Libraries", with its content. Right-click
 it → Show as Extra Library (or Settings → ZoteroMultipleLibraries → "Group
 libraries on this computer" → Show as Extra Library). It moves to the top
-level, and you can then set its file syncing to WebDAV with the same settings
-as on the first computer; the files are fetched at the next sync. "Show under
+level. With Zotero storage (the default) its files are fetched at the next
+sync or when you open them; for WebDAV, enter the same settings as on the
+first computer. "Show under
 Group Libraries" reverses this. A Zotero without the plugin sees the group as
 an ordinary group library whose files are "not found" until the plugin is
 installed there too.
