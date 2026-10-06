@@ -89,8 +89,13 @@ So:
   account credentials and your existing WebDAV settings are never read or
   changed by the plugin.
 
-Every Zotero that syncs that group with this plugin installed and the same
-WebDAV settings sees the files; a Zotero without the plugin sees the group as
+**On another computer**, do not create or link anything: after a sync the
+group is already there, under "Group Libraries", with its content. Right-click
+it → Show as Extra Library (or Settings → ZoteroMultipleLibraries → "Group
+libraries on this computer" → Show as Extra Library). It moves to the top
+level, and you can then set its file syncing to WebDAV with the same settings
+as on the first computer; the files are fetched at the next sync. "Show under
+Group Libraries" reverses this. A Zotero without the plugin sees the group as
 an ordinary group library whose files are "not found" until the plugin is
 installed there too.
 

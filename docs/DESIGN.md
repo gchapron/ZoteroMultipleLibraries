@@ -198,6 +198,20 @@ local (synthetic-ID) libraries. Unlinking is not offered: the group ID is
 baked into item URIs, and word-processor field codes created before linking
 may need a reselect, which the link confirmation says.
 
+### Second computer: adopting
+
+On another computer the group is downloaded by Zotero's sync as an ordinary
+group library, content included, so there is nothing to link: "Show as Extra
+Library" (`Libraries.adoptGroup()`) only records `linked: true` for that
+library in the settings table, which makes it managed (top level, per-library
+file syncing). Because Zotero may already have tried to fetch the files from
+Zotero storage, found none, and marked the attachments as in sync without a
+file, adopting also calls Zotero's `resetAllSyncStates()` for the library so
+missing files are fetched once file syncing is set up. "Show under Group
+Libraries" (`releaseGroup()`) removes the settings row and the password.
+Linking a local library to a group that already contains items is refused and
+offers adopting instead.
+
 ### Per-library WebDAV files
 
 Zotero chooses a library's file-sync mode in
