@@ -222,9 +222,12 @@ preferences, and the data engine includes a file's `md5`/`mtime` in uploads
 only when the library's mode is exactly `'webdav'` (that is how other clients
 learn that a file is available on WebDAV).
 
-A linked library's file mode defaults to Zotero's normal group behaviour
-(Zotero storage, following the Sync preference for group files); "none"
-turns file syncing off for that library, including on-demand downloads.
+A linked library's file mode defaults to Zotero storage. The per-library
+choice is authoritative: files sync through Zotero storage even when
+Zotero's Sync preference for group files is off (an extra library is
+presented as a personal library, so that group-wide preference should not
+silently disable it); "none" turns file syncing off for that library,
+including on-demand downloads.
 For a linked library whose file mode is WebDAV the plugin therefore:
 
 - returns `'webdav'` from `getModeForLibrary()` and the library's own

@@ -78,9 +78,9 @@ So:
 
 **Attachment files** of a linked library can go to one of:
 
-- *Zotero storage*, the normal group behaviour and the default: files follow
-  Zotero's Sync setting for group files and count against the group owner's
-  Zotero storage quota;
+- *Zotero storage*, the default: files sync through Zotero storage whatever
+  Zotero's Sync setting for group libraries says, and count against the
+  group owner's Zotero storage quota;
 - *WebDAV*, with the library's own URL, username, and password, verified with
   Verify Server. Zotero stores the files in a `zotero` subfolder of that URL,
   so give each library its own folder; the pane refuses the folder My Library
