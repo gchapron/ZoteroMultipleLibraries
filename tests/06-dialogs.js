@@ -6,7 +6,7 @@ const dump = view => view._rows.map(r => r.level + ":" + r.type + ":" + (r.ref &
 
 // Outside a patched refresh, Zotero.Groups.getAll() still returns local libraries
 out.groupsGetAllOutside = Zotero.Groups.getAll().map(g => g.name);
-out.groupsGetAllInside = await ZML.Core.withLocalGroupsHidden(async () => Zotero.Groups.getAll().map(g => g.name));
+out.groupsGetAllInside = await ZML.Core.withManagedGroupsHidden(async () => Zotero.Groups.getAll().map(g => g.name));
 
 // Non-modal Select Items dialog
 let io = { dataIn: null, dataOut: null, deferred: Zotero.Promise.defer() };

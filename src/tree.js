@@ -9,7 +9,7 @@
  * the same virtual collections (Duplicate Items, Unfiled Items, Retracted Items,
  * Trash) and persisted open/closed state as any library.
  *
- * Rows for local libraries keep Zotero's 'group' row type: that is what makes
+ * Rows for managed libraries keep Zotero's 'group' row type: that is what makes
  * editing permissions, drag and drop, context menus and the item pane treat them
  * as editable libraries without further patches. Only the icon and the
  * double-click action are changed.
@@ -208,7 +208,7 @@ ZoteroMultipleLibraries.Tree = {
 
 		Patches.wrap(proto, "refresh", original => async function (...args) {
 			// Zotero's refresh() must not list local libraries under Group Libraries
-			await ZML.Core.withLocalGroupsHidden(() => original.apply(this, args));
+			await ZML.Core.withManagedGroupsHidden(() => original.apply(this, args));
 			try {
 				await Tree._insertLocalLibraries(this);
 			}
@@ -219,7 +219,7 @@ ZoteroMultipleLibraries.Tree = {
 
 		Patches.wrap(proto, "getIconName", original => function (index) {
 			let row = this.getRow(index);
-			if (row && row.type == "group" && ZML.Libraries.isLocalLibrary(row.ref)) {
+			if (row && row.type == "group" && ZML.Libraries.isManagedLibrary(row.ref)) {
 				return "library";
 			}
 			return original.call(this, index);
@@ -237,7 +237,7 @@ ZoteroMultipleLibraries.Tree = {
 		Patches.wrap(view, "handleActivate", original => (event, indices) => {
 			if (indices && indices.length == 1) {
 				let row = view.getRow(indices[0]);
-				if (row && row.type == "group" && ZML.Libraries.isLocalLibrary(row.ref)) {
+				if (row && row.type == "group" && ZML.Libraries.isManagedLibrary(row.ref)) {
 					let window = view.props.domEl ? view.props.domEl.ownerGlobal : null;
 					ZML.UI.renameLibrary(window, row.ref);
 					return undefined;
@@ -248,7 +248,7 @@ ZoteroMultipleLibraries.Tree = {
 	},
 
 	/**
-	 * Insert local libraries (and their expanded children) into view._rows
+	 * Insert managed libraries (and their expanded children) into view._rows
 	 * right after My Library's subtree
 	 */
 	async _insertLocalLibraries(view) {

@@ -14,11 +14,13 @@ var ZoteroMultipleLibraries = {
 	// Sub-module files, in load order
 	_modules: [
 		"util.js",
+		"settings.js",
 		"libraries.js",
 		"core.js",
 		"tree.js",
 		"ui.js",
 	],
+
 
 	_windows: new Set(),
 
@@ -39,12 +41,14 @@ var ZoteroMultipleLibraries = {
 		Zotero.MultipleLibraries = this;
 
 		await Zotero.uiReadyPromise;
+		await this.Settings.load();
 
 		// Make sure Zotero core never syncs local libraries, even without us
 		this.Libraries.ensureAllSkipped();
 		this.Core.init();
 		this.UI.init();
 		this.Tree.startWindowWatcher();
+
 
 		// Windows that are already open don't get onMainWindowLoad
 		for (let win of Zotero.getMainWindows()) {

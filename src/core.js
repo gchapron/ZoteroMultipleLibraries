@@ -1,29 +1,29 @@
 /* global Zotero, ZoteroMultipleLibraries */
 /*
- * Patches to Zotero core (window-independent) that keep local libraries out of
- * everything group-specific: the "Group Libraries" section and sync.
+ * Patches to Zotero core (window-independent) that keep managed libraries out
+ * of the "Group Libraries" section and local libraries out of sync.
  */
 
 ZoteroMultipleLibraries.Core = {
 	_notifierID: null,
-	// > 0 while Zotero.Groups.getAll() must leave local libraries out
-	_hideLocalGroups: 0,
+	// > 0 while Zotero.Groups.getAll() must leave managed libraries out
+	_hideManagedGroups: 0,
 
 	/**
-	 * Run fn() with local libraries hidden from Zotero.Groups.getAll()
+	 * Run fn() with managed libraries hidden from Zotero.Groups.getAll()
 	 *
 	 * Used around a patched collection tree refresh (the tree inserts them
 	 * itself) and around the sync runner's library check. Everywhere else, e.g.
-	 * an unpatched collection tree in a dialog or the local API, local libraries
-	 * stay visible as group libraries.
+	 * an unpatched collection tree in a dialog or the local API, they stay
+	 * visible as group libraries.
 	 */
-	async withLocalGroupsHidden(fn) {
-		this._hideLocalGroups++;
+	async withManagedGroupsHidden(fn) {
+		this._hideManagedGroups++;
 		try {
 			return await fn();
 		}
 		finally {
-			this._hideLocalGroups--;
+			this._hideManagedGroups--;
 		}
 	},
 
@@ -33,16 +33,17 @@ ZoteroMultipleLibraries.Core = {
 
 		Patches.wrap(Zotero.Groups, "getAll", original => function () {
 			let groups = original.call(this);
-			if (ZML.Core._hideLocalGroups > 0) {
-				groups = groups.filter(group => !ZML.Libraries.isLocalLibrary(group));
+			if (ZML.Core._hideManagedGroups > 0) {
+				groups = groups.filter(group => !ZML.Libraries.isManagedLibrary(group));
 			}
 			return groups;
 		});
 
-		// Never let a local library reach the sync engine, whether the whole
-		// account or specific libraries are being synced. Hiding local groups
-		// during the check also keeps the original from reporting them as groups
-		// the user "is no longer a member of".
+		// Never let a local (unsynced) library reach the sync engine, whether the
+		// whole account or specific libraries are being synced. Linked libraries
+		// are real groups and sync normally. Hiding managed groups during the
+		// check keeps the original from reporting local libraries as groups the
+		// user "is no longer a member of".
 		if (Zotero.Sync && Zotero.Sync.Runner) {
 			Patches.wrap(Zotero.Sync.Runner, "checkLibraries", original => async function (client, options, keyInfo, libraries = []) {
 				if (libraries && libraries.length) {
@@ -53,7 +54,7 @@ ZoteroMultipleLibraries.Core = {
 						return [];
 					}
 				}
-				let result = await ZML.Core.withLocalGroupsHidden(
+				let result = await ZML.Core.withManagedGroupsHidden(
 					() => original.call(this, client, options, keyInfo, libraries)
 				);
 				return result.filter(id => !ZML.Libraries.isLocalLibrary(id));
@@ -71,20 +72,27 @@ ZoteroMultipleLibraries.Core = {
 	},
 
 	_observer: {
-		notify(action, type, ids, _extraData) {
+		notify(action, type, ids, extraData) {
 			if (type != "group") {
 				return;
 			}
 			const ZML = ZoteroMultipleLibraries;
 			for (let id of ids) {
-				if (!ZML.Libraries.isLocalGroupID(id)) {
-					continue;
-				}
-				if (action == "add") {
+				if (action == "add" && ZML.Libraries.isLocalGroupID(id)) {
 					ZML.Libraries.ensureSkipped(id);
 				}
 				else if (action == "delete") {
-					ZML.Libraries.unskip(id);
+					if (ZML.Libraries.isLocalGroupID(id)) {
+						ZML.Libraries.unskip(id);
+					}
+					// Clean up after deletions we didn't perform ourselves (e.g., Zotero
+					// removing a group during sync)
+					let libraryID = extraData && extraData[id] && extraData[id].libraryID;
+					if (libraryID && ZML.Settings.has(libraryID)) {
+						ZML.Settings.remove(libraryID).catch(e => ZML.Util.error(e));
+						ZML.Storage.removePassword(libraryID).catch(e => ZML.Util.error(e));
+						ZML.Storage.resetController(libraryID);
+					}
 				}
 			}
 			if (action == "delete") {
