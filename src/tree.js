@@ -77,13 +77,17 @@ ZoteroMultipleLibraries.Tree = {
 			selectedID = row ? row.id : null;
 		}
 		await view.reload();
-		if (selectedID) {
-			try {
+		try {
+			if (selectedID && selectedID in view._rowMap) {
 				await view.selectByID(selectedID);
 			}
-			catch (e) {
-				ZoteroMultipleLibraries.Util.error(e);
+			else {
+				// The selected row is gone (e.g., its library was deleted)
+				await view.selectLibrary(Zotero.Libraries.userLibraryID);
 			}
+		}
+		catch (e) {
+			ZoteroMultipleLibraries.Util.error(e);
 		}
 		view.forceUpdate();
 		view.selection.selectEventsSuppressed = false;

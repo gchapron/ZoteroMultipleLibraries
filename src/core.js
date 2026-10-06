@@ -51,20 +51,22 @@ ZoteroMultipleLibraries.Core = {
 			if (type != "group") {
 				return;
 			}
-			const Libraries = ZoteroMultipleLibraries.Libraries;
+			const ZML = ZoteroMultipleLibraries;
 			for (let id of ids) {
-				if (!Libraries.isLocalGroupID(id)) {
+				if (!ZML.Libraries.isLocalGroupID(id)) {
 					continue;
 				}
 				if (action == "add") {
-					Libraries.ensureSkipped(id);
+					ZML.Libraries.ensureSkipped(id);
 				}
 				else if (action == "delete") {
-					Libraries.unskip(id);
-					// The tree removes the library's rows itself; rebuild it so the
-					// separator we added in front of them goes too
-					ZoteroMultipleLibraries.Tree.reloadAll().catch(e => ZoteroMultipleLibraries.Util.error(e));
+					ZML.Libraries.unskip(id);
 				}
+			}
+			if (action == "delete") {
+				// The tree only removes the deleted library's own rows, leaving our
+				// separator (or Zotero's "Group Libraries" header) behind: rebuild it
+				ZML.Tree.reloadAll().catch(e => ZML.Util.error(e));
 			}
 		},
 	},
