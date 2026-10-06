@@ -22,6 +22,7 @@ var ZoteroMultipleLibraries = {
 		"ui.js",
 	],
 
+	prefPaneID: null,
 
 	_windows: new Set(),
 
@@ -51,6 +52,13 @@ var ZoteroMultipleLibraries = {
 		this.UI.init();
 		this.Tree.startWindowWatcher();
 
+		this.prefPaneID = await Zotero.PreferencePanes.register({
+			pluginID: id,
+			src: rootURI + "content/preferences.xhtml",
+			scripts: [rootURI + "content/preferences.js"],
+			label: this.Util.getString("zml-prefpane-label"),
+			image: "chrome://zotero/skin/16/universal/library.svg",
+		});
 
 		// Windows that are already open don't get onMainWindowLoad
 		for (let win of Zotero.getMainWindows()) {
@@ -81,6 +89,10 @@ var ZoteroMultipleLibraries = {
 	async shutdown(reason) {
 		this.Util.log(`shutting down (reason ${reason})`);
 		this.Tree.stopWindowWatcher();
+		if (this.prefPaneID) {
+			Zotero.PreferencePanes.unregister(this.prefPaneID);
+			this.prefPaneID = null;
+		}
 		this.UI.uninit();
 		this.Core.uninit();
 		this.Storage.uninit();

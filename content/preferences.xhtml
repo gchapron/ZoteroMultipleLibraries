@@ -1,0 +1,74 @@
+<vbox xmlns="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul"
+      xmlns:html="http://www.w3.org/1999/xhtml"
+      id="zml-prefs-root">
+
+	<groupbox>
+		<label><html:h2 data-l10n-id="zml-prefs-libraries-heading"/></label>
+		<hbox align="center">
+			<label data-l10n-id="zml-prefs-library-label" control="zml-library"/>
+			<menulist id="zml-library" native="true" style="flex: 1">
+				<menupopup/>
+			</menulist>
+			<button id="zml-new" data-l10n-id="zml-prefs-new-button"/>
+			<button id="zml-rename" data-l10n-id="zml-prefs-rename-button"/>
+			<button id="zml-delete" data-l10n-id="zml-prefs-delete-button"/>
+		</hbox>
+		<description id="zml-no-libraries" data-l10n-id="zml-prefs-no-libraries" hidden="true"/>
+	</groupbox>
+
+	<groupbox id="zml-sync-box">
+		<label><html:h2 data-l10n-id="zml-prefs-sync-heading"/></label>
+		<description id="zml-sync-status"/>
+		<vbox id="zml-link-box">
+			<description data-l10n-id="zml-prefs-link-explanation"/>
+			<hbox align="center">
+				<label data-l10n-id="zml-prefs-group-id-label" control="zml-group-id"/>
+				<html:input id="zml-group-id" type="text" style="width: 10em"/>
+				<button id="zml-link" data-l10n-id="zml-prefs-link-button"/>
+			</hbox>
+		</vbox>
+		<checkbox id="zml-sync-enabled" data-l10n-id="zml-prefs-sync-enabled" native="true"/>
+	</groupbox>
+
+	<groupbox id="zml-file-box">
+		<label><html:h2 data-l10n-id="zml-prefs-file-heading"/></label>
+		<description id="zml-file-unavailable" data-l10n-id="zml-prefs-file-sync-unavailable"/>
+		<vbox id="zml-file-settings">
+			<hbox align="center">
+				<label data-l10n-id="zml-prefs-file-mode-label" control="zml-file-mode"/>
+				<menulist id="zml-file-mode" native="true">
+					<menupopup>
+						<menuitem value="none" data-l10n-id="zml-prefs-file-mode-none"/>
+						<menuitem value="zotero" data-l10n-id="zml-prefs-file-mode-zotero"/>
+						<menuitem value="webdav" data-l10n-id="zml-prefs-file-mode-webdav"/>
+					</menupopup>
+				</menulist>
+			</hbox>
+			<vbox id="zml-webdav-box">
+				<hbox align="center">
+					<label data-l10n-id="zml-prefs-url-label" control="zml-url"/>
+					<menulist id="zml-scheme" native="true">
+						<menupopup>
+							<menuitem value="https" label="https://"/>
+							<menuitem value="http" label="http://"/>
+						</menupopup>
+					</menulist>
+					<html:input id="zml-url" type="text" style="flex: 1"/>
+				</hbox>
+				<hbox align="center">
+					<label data-l10n-id="zml-prefs-username-label" control="zml-username"/>
+					<html:input id="zml-username" type="text" style="flex: 1"/>
+				</hbox>
+				<hbox align="center">
+					<label data-l10n-id="zml-prefs-password-label" control="zml-password"/>
+					<html:input id="zml-password" type="password" style="flex: 1"/>
+				</hbox>
+				<hbox align="center">
+					<button id="zml-verify" data-l10n-id="zml-prefs-verify-button"/>
+					<description id="zml-verify-status"/>
+				</hbox>
+				<description data-l10n-id="zml-prefs-webdav-note"/>
+			</vbox>
+		</vbox>
+	</groupbox>
+</vbox>

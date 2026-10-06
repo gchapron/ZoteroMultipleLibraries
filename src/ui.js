@@ -1,6 +1,7 @@
 /* global Zotero, Services, ZoteroMultipleLibraries */
 /*
- * Menus and dialogs: New Library…, Rename Library…, Delete Library…
+ * Menus and dialogs: New Library…, Library Settings…, Rename Library…,
+ * Delete Library…
  */
 
 ZoteroMultipleLibraries.UI = {
@@ -10,8 +11,8 @@ ZoteroMultipleLibraries.UI = {
 		const ZML = ZoteroMultipleLibraries;
 		const libraryIcon = "chrome://zotero/skin/16/universal/library.svg";
 
-		let isLocalRow = rows => rows && rows.length == 1
-			&& rows[0].type == "group" && ZML.Libraries.isLocalLibrary(rows[0].ref);
+		let isManagedRow = rows => rows && rows.length == 1
+			&& rows[0].type == "group" && ZML.Libraries.isManagedLibrary(rows[0].ref);
 
 		// Collection tree context menu
 		this._menuIDs.push(Zotero.MenuManager.registerMenu({
@@ -27,8 +28,16 @@ ZoteroMultipleLibraries.UI = {
 				},
 				{
 					menuType: "menuitem",
+					l10nID: "zml-menu-library-settings",
+					onShowing: (_event, context) => context.setVisible(isManagedRow(context.collectionTreeRows)),
+					onCommand: (event, context) => this.openSettings(
+						event.target.ownerGlobal, context.collectionTreeRows[0].ref
+					),
+				},
+				{
+					menuType: "menuitem",
 					l10nID: "zml-menu-rename-library",
-					onShowing: (_event, context) => context.setVisible(isLocalRow(context.collectionTreeRows)),
+					onShowing: (_event, context) => context.setVisible(isManagedRow(context.collectionTreeRows)),
 					onCommand: (event, context) => this.renameLibrary(
 						event.target.ownerGlobal, context.collectionTreeRows[0].ref
 					),
@@ -36,7 +45,7 @@ ZoteroMultipleLibraries.UI = {
 				{
 					menuType: "menuitem",
 					l10nID: "zml-menu-delete-library",
-					onShowing: (_event, context) => context.setVisible(isLocalRow(context.collectionTreeRows)),
+					onShowing: (_event, context) => context.setVisible(isManagedRow(context.collectionTreeRows)),
 					onCommand: (event, context) => this.deleteLibrary(
 						event.target.ownerGlobal, context.collectionTreeRows[0].ref
 					),
@@ -159,7 +168,7 @@ ZoteroMultipleLibraries.UI = {
 
 	async renameLibrary(window, library) {
 		const ZML = ZoteroMultipleLibraries;
-		if (!ZML.Libraries.isLocalLibrary(library)) {
+		if (!ZML.Libraries.isManagedLibrary(library)) {
 			return;
 		}
 		try {
@@ -183,15 +192,18 @@ ZoteroMultipleLibraries.UI = {
 
 	async deleteLibrary(window, library) {
 		const ZML = ZoteroMultipleLibraries;
-		if (!ZML.Libraries.isLocalLibrary(library)) {
+		if (!ZML.Libraries.isManagedLibrary(library)) {
 			return;
 		}
 		try {
 			let count = await ZML.Libraries.countItems(library.libraryID);
+			let textID = ZML.Libraries.isLinkedLibrary(library)
+				? "zml-delete-linked-library-text"
+				: "zml-delete-library-text";
 			let index = Zotero.Prompt.confirm({
 				window,
 				title: this._getString("zml-delete-library-title"),
-				text: this._getString("zml-delete-library-text", { name: library.name, count }),
+				text: this._getString(textID, { name: library.name, count }),
 				button0: this._getString("zml-delete-library-button"),
 				button1: Services.prompt.BUTTON_TITLE_CANCEL,
 				defaultButton: 1,
@@ -210,6 +222,61 @@ ZoteroMultipleLibraries.UI = {
 		catch (e) {
 			ZML.Util.error(e);
 			Services.prompt.alert(window, this._getString("zml-delete-library-title"), String(e));
+		}
+	},
+
+	/**
+	 * Open the plugin's preferences pane with the given library selected
+	 */
+	openSettings(_window, library) {
+		const ZML = ZoteroMultipleLibraries;
+		if (library) {
+			ZML.Util.setPref("selectLibrary", library.libraryID);
+		}
+		// `action` makes an already-open pane re-read the selection pref
+		Zotero.Utilities.Internal.openPreferences(ZML.prefPaneID, { action: true });
+	},
+
+	/**
+	 * Ask for a zotero.org group ID and link the library to it
+	 *
+	 * @return {Boolean} - Whether the library was linked
+	 */
+	async linkLibrary(window, library, groupID) {
+		const ZML = ZoteroMultipleLibraries;
+		let title = this._getString("zml-link-confirm-title");
+		try {
+			groupID = parseInt(String(groupID).trim());
+			if (!Number.isInteger(groupID) || groupID <= 0 || ZML.Libraries.isLocalGroupID(groupID)) {
+				Services.prompt.alert(window, title, this._getString("zml-error-group-id-invalid"));
+				return false;
+			}
+			if (!ZML.Libraries.isLocalLibrary(library)) {
+				Services.prompt.alert(window, title, this._getString("zml-error-not-local"));
+				return false;
+			}
+			if (Zotero.Groups.exists(groupID)) {
+				Services.prompt.alert(window, title, this._getString("zml-error-group-exists", { groupID: String(groupID) }));
+				return false;
+			}
+			let index = Zotero.Prompt.confirm({
+				window,
+				title,
+				text: this._getString("zml-link-confirm-text", { name: library.name, groupID: String(groupID) }),
+				button0: this._getString("zml-link-confirm-button"),
+				button1: Services.prompt.BUTTON_TITLE_CANCEL,
+				defaultButton: 1,
+			});
+			if (index !== 0) {
+				return false;
+			}
+			await ZML.Libraries.linkToGroup(library, groupID);
+			return true;
+		}
+		catch (e) {
+			ZML.Util.error(e);
+			Services.prompt.alert(window, title, String(e));
+			return false;
 		}
 	},
 };
