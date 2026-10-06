@@ -73,14 +73,12 @@ var ZoteroMultipleLibraries = {
 
 	async shutdown(reason) {
 		this.Util.log(`shutting down (reason ${reason})`);
-		for (let win of Array.from(this._windows)) {
-			this.onMainWindowUnload(win);
-		}
 		this.UI.uninit();
 		this.Core.uninit();
 		this.Util.Patches.unwrapAll();
 		// With the patches gone, redraw so local libraries show under Group Libraries
 		await this.Tree.detachAll();
+		this._windows.clear();
 		if (Zotero.MultipleLibraries === this) {
 			delete Zotero.MultipleLibraries;
 		}
