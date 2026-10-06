@@ -9,6 +9,6 @@ NAME="zotero-multiple-libraries"
 OUT="build/$NAME-$VERSION.xpi"
 mkdir -p build
 rm -f "$OUT"
-zip -q -r -X "$OUT" manifest.json bootstrap.js prefs.js src locale LICENSE README.md -x '*.DS_Store'
+zip -q -r -X "$OUT" manifest.json bootstrap.js prefs.js src content locale LICENSE README.md -x '*.DS_Store'
 echo "built $OUT"
 unzip -l "$OUT" | tail -1

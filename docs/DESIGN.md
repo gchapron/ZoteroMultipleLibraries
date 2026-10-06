@@ -160,17 +160,79 @@ Enabling the plugin again moves them back to the top level.
   library's synced settings.
 - My Publications exists only in My Library.
 
-## Roadmap: per-library sync
+## Syncing an extra library with the same account
 
-Zotero's sync engine (`Zotero.Sync.Data.Engine`) is instantiated per library
-with an API client and a library object, and the file-sync mode is chosen
-per library in `Zotero.Sync.Storage.Local.getModeForLibrary()`. A later
-version can give each local library its own credentials (API key / WebDAV)
-stored in Zotero's `settings` table and the login manager, run an engine for
-it against `users/<otherUserID>` and a WebDAV controller with its own
-settings, while keeping the library out of the main account's sync. The
-present design keeps that door open: nothing about a local library is tied to
-the main account.
+### The constraint
+
+The Zotero server knows two kinds of library per account: the one personal
+library (`users/<userID>`) and group libraries (`groups/<groupID>`). There is
+no way to attach a second personal library to an account. The only container
+the same account offers for an extra library's items is therefore a group,
+in practice a private, members-only group the user creates on zotero.org.
+
+### Linking
+
+A local library already *is* a group library with a synthetic ID, so
+"linking" it to a zotero.org group is an ID change
+(`Libraries.linkToGroup()`):
+
+- `groups.groupID` is updated to the real ID inside a transaction, and every
+  relation URI that mentions the old ID (`owl:sameAs` links created by drag
+  and drop, related items) is rewritten in `itemRelations` and
+  `collectionRelations`, with the in-memory relation registry and loaded
+  objects refreshed on commit (the same approach as
+  `Zotero.Relations.updateUser()`);
+- the `Zotero.Groups` cache is re-registered and the group object's ID
+  changed in place; `libraryVersion` and `groups.version` stay 0;
+- the plugin records `linked: true` for the library in Zotero's `settings`
+  table (`setting = 'multipleLibraries'`, `key = 'L<libraryID>'`), which is
+  what makes it "managed" (shown at the top level) now that its ID is no
+  longer in the reserved range;
+- the group ID is removed from the "libraries to skip" preference.
+
+From here on Zotero's own sync does everything: `checkLibraries()` finds the
+group in the account's group list, sees local version 0, downloads the group
+metadata (name, permissions), and the data engine uploads the local objects,
+which all carry `synced = 0`. The plugin's sync shield only ever excludes
+local (synthetic-ID) libraries. Unlinking is not offered: the group ID is
+baked into item URIs, and word-processor field codes created before linking
+may need a reselect, which the link confirmation says.
+
+### Per-library WebDAV files
+
+Zotero chooses a library's file-sync mode in
+`Zotero.Sync.Storage.Local.getModeForLibrary()`: WebDAV or Zotero storage for
+My Library from one global preference, always Zotero storage for groups. The
+sync runner then keeps one controller per mode, built from the global WebDAV
+preferences, and the data engine includes a file's `md5`/`mtime` in uploads
+only when the library's mode is exactly `'webdav'` (that is how other clients
+learn that a file is available on WebDAV).
+
+For a linked library whose file mode is WebDAV the plugin therefore:
+
+- returns `'webdav'` from `getModeForLibrary()` and the library's own
+  enabled state from `getEnabledForLibrary()`;
+- returns, from `getClassForLibrary()` and from the runner's
+  `getStorageController()` (called with `options.libraryID`), a controller
+  bound to that library: a subclass of `Zotero.Sync.Storage.Mode.WebDAV`
+  whose `verified` flag, username, scheme and URL come from the library's
+  settings row, whose password lives in the login manager under the realm
+  `Zotero Multiple Libraries WebDAV L<libraryID>`, and whose `_init()` builds
+  the URIs from those values. Everything else (verification, `.prop`/`.zip`
+  upload and download, purging) is Zotero's code unchanged.
+
+Zotero's own WebDAV preferences and the "Zotero Storage Server" login
+entries are never read for use nor written; the only read is the URL, to
+refuse a folder that My Library already syncs to (two libraries in one
+`zotero/` folder would collide).
+
+### What was and was not tested
+
+Linking, the tree, the settings pane, and file syncing (verify, upload,
+download round trip through `Zotero.Sync.Storage.Engine`) were exercised
+against a local Apache WebDAV server (`tools/webdav-server.sh`) in a
+throwaway profile with no Zotero account. The data sync of a linked group
+against zotero.org is Zotero's unmodified code path and was not run.
 
 ## Development notes
 
@@ -181,3 +243,5 @@ the main account.
 - `tools/dev-bridge/` is a tiny development-only plugin that exposes an HTTP
   endpoint for running JavaScript inside that test instance (used by the
   smoke tests in `tests/`). Never install it in a real profile.
+- `tools/webdav-server.sh` runs the macOS-bundled Apache with `mod_dav` on
+  127.0.0.1 with throwaway credentials for the file-sync test.
