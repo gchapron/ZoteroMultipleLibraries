@@ -17,20 +17,58 @@ const ENDPOINT = "/zml-dev/exec";
 function startup() {
 	const AsyncFunction = Object.getPrototypeOf(async function () {}).constructor;
 
-	function safeStringify(obj) {
-		const seen = new WeakSet();
-		return JSON.stringify(obj, (key, value) => {
-			if (typeof value == "bigint") {
-				return value.toString();
-			}
-			if (value && typeof value == "object") {
-				if (seen.has(value)) {
-					return "[circular]";
-				}
-				seen.add(value);
-			}
+	// Zotero DB rows are proxies that throw on unknown properties (JSON.stringify
+	// probes toJSON), so copy results into plain data first.
+	function plain(value, depth = 0, seen = new WeakSet()) {
+		if (value === null || value === undefined) {
 			return value;
-		});
+		}
+		if (typeof value == "bigint") {
+			return value.toString();
+		}
+		if (typeof value == "function") {
+			return "[function]";
+		}
+		if (typeof value != "object") {
+			return value;
+		}
+		if (depth > 8) {
+			return "[depth]";
+		}
+		if (seen.has(value)) {
+			return "[circular]";
+		}
+		seen.add(value);
+		if (Array.isArray(value)) {
+			return value.map(v => plain(v, depth + 1, seen));
+		}
+		if (value instanceof Date) {
+			return value.toISOString();
+		}
+		if (value instanceof Error) {
+			return { error: String(value), stack: value.stack };
+		}
+		let copy = {};
+		let keys;
+		try {
+			keys = Object.keys(value);
+		}
+		catch (e) {
+			return String(value);
+		}
+		for (let key of keys) {
+			try {
+				copy[key] = plain(value[key], depth + 1, seen);
+			}
+			catch (e) {
+				copy[key] = "[unreadable: " + e + "]";
+			}
+		}
+		return copy;
+	}
+
+	function safeStringify(obj) {
+		return JSON.stringify(plain(obj));
 	}
 
 	function Exec() {}
