@@ -12,7 +12,7 @@
 #
 # Usage:
 #   tools/test-profile.sh            start (or restart) the test instance
-#   tools/test-profile.sh --reset    wipe profile + data first, then start
+#   tools/test-profile.sh --reset    wipe the profile + data first, then start
 #   tools/test-profile.sh --stop     stop the test instance
 #
 set -euo pipefail
@@ -45,7 +45,8 @@ case "${1:-}" in
 		;;
 	--reset)
 		stop_instance
-		rm -rf "$TEST_DIR"
+		# Only the Zotero profile and data (tools/.test also hosts the WebDAV test server)
+		rm -rf "$PROFILE" "$DATA" "$LOG"
 		;;
 	"")
 		stop_instance
