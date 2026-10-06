@@ -18,7 +18,7 @@
  */
 
 ZoteroMultipleLibraries.Storage = {
-	MODES: ["none", "zotero", "webdav"],
+	MODES: ["zotero", "webdav", "none"],
 	LOGIN_HOST: "chrome://zotero",
 
 	LibraryWebDAV: null,
@@ -41,11 +41,16 @@ ZoteroMultipleLibraries.Storage = {
 
 		Patches.wrap(Local, "getEnabledForLibrary", original => function (libraryID) {
 			let mode = ZML.Storage.getFileSyncMode(libraryID);
-			if (mode === null) {
-				return original.call(this, libraryID);
+			if (mode == "none") {
+				return false;
 			}
-			// Zotero's own rule: no file syncing before the account has synced once
-			return mode != "none" && !!Zotero.Users.getCurrentUserID();
+			if (mode == "webdav") {
+				// Zotero's own rule: no file syncing before the account has synced once
+				return !!Zotero.Users.getCurrentUserID();
+			}
+			// "zotero" or not managed: Zotero's normal rule for group libraries (the
+			// Sync preference for group files)
+			return original.call(this, libraryID);
 		});
 
 		Patches.wrap(Local, "getClassForLibrary", original => function (libraryID) {
@@ -84,7 +89,7 @@ ZoteroMultipleLibraries.Storage = {
 		}
 		if (Libraries.isLinkedLibrary(libraryID)) {
 			let mode = ZoteroMultipleLibraries.Settings.get(libraryID).fileSync.mode;
-			return this.MODES.includes(mode) ? mode : "none";
+			return this.MODES.includes(mode) ? mode : "zotero";
 		}
 		return null;
 	},

@@ -8,16 +8,23 @@
 
 ZoteroMultipleLibraries.Settings = {
 	SETTING: "multipleLibraries",
+	// Bumped when the meaning of stored values changes (see _merge())
+	SCHEMA_VERSION: 2,
 
 	_cache: new Map(), // libraryID -> config
 	loaded: false,
 
 	defaults() {
 		return {
+			version: this.SCHEMA_VERSION,
 			// True once the library has been linked to a real zotero.org group
 			linked: false,
 			fileSync: {
-				mode: "none", // none | zotero | webdav
+				// zotero: Zotero's normal behaviour for group libraries (Zotero storage,
+				//   following the Sync preference for group files) — the default
+				// webdav: this library's own WebDAV server
+				// none: never sync this library's files
+				mode: "zotero",
 				scheme: "https",
 				url: "",
 				username: "",
@@ -37,7 +44,14 @@ ZoteroMultipleLibraries.Settings = {
 					config[key] = partial[key];
 				}
 			}
+			// Rows written by 0.1.1/0.1.2 (no version) defaulted to "none" without
+			// the user choosing, which blocked all file downloads for the library;
+			// Zotero's normal group behaviour is the intended default
+			if (partial.version === undefined && config.fileSync.mode == "none") {
+				config.fileSync.mode = "zotero";
+			}
 		}
+		config.version = this.SCHEMA_VERSION;
 		return config;
 	},
 
@@ -46,17 +60,26 @@ ZoteroMultipleLibraries.Settings = {
 		let rows = await Zotero.DB.queryAsync(
 			"SELECT key, value FROM settings WHERE setting=?", this.SETTING
 		);
+		let migrated = [];
 		for (let row of rows) {
 			let matches = /^L(\d+)$/.exec(row.key);
 			if (!matches) {
 				continue;
 			}
 			try {
-				this._cache.set(parseInt(matches[1]), this._merge(JSON.parse(row.value)));
+				let libraryID = parseInt(matches[1]);
+				let stored = JSON.parse(row.value);
+				this._cache.set(libraryID, this._merge(stored));
+				if (!stored || stored.version !== this.SCHEMA_VERSION) {
+					migrated.push(libraryID);
+				}
 			}
 			catch (e) {
 				ZoteroMultipleLibraries.Util.error(e);
 			}
+		}
+		for (let libraryID of migrated) {
+			await this.set(libraryID, this._cache.get(libraryID));
 		}
 		this.loaded = true;
 	},

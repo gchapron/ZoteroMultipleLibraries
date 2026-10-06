@@ -7,6 +7,12 @@ let out = {};
 const topRows = () => ZoteroPane.collectionsView._rows.filter(r => r.level == 0).map(r => r.type + ":" + (r.ref && (r.ref.name || r.ref.label) || ""));
 const groupRows = () => ZoteroPane.collectionsView._rows.filter(r => r.level == 1 && r.type == "group").map(r => r.ref.name);
 
+// File syncing requires an account that has synced; a fake local user ID
+// satisfies that without any server contact (throwaway profile only)
+if (!Zotero.Users.getCurrentUserID()) {
+	await Zotero.Users.setCurrentUserID(1);
+}
+
 // Cleanup
 for (let l of ZML.Libraries.getAll().filter(l => l.name == "Adopt Local")) {
 	await ZML.Libraries.erase(l);
@@ -62,8 +68,15 @@ out.linkFlow = {
 	attachmentStateAfterAdopt: attachment.attachmentSyncState,
 	toDownloadConstant: Zotero.Sync.Storage.Local.SYNC_STATE_TO_DOWNLOAD,
 	fileSyncMode: ZML.Storage.getFileSyncMode(group.libraryID),
+	// Default after adopting: Zotero's normal group file syncing, so files are
+	// fetched from Zotero storage (on sync and on demand)
+	fileSyncEnabled: Zotero.Sync.Storage.Local.getEnabledForLibrary(group.libraryID),
+	storageMode: Zotero.Sync.Storage.Local.getModeForLibrary(group.libraryID),
 	adoptableNow: ZML.Libraries.getAdoptableGroups().map(x => x.name),
 };
+await ZML.Settings.update(group.libraryID, c => { c.fileSync.mode = "none"; });
+out.noneDisables = !Zotero.Sync.Storage.Local.getEnabledForLibrary(group.libraryID);
+await ZML.Settings.update(group.libraryID, c => { c.fileSync.mode = "zotero"; });
 
 // Pane: adopted library selectable, release button visible; adopt box hidden when nothing to adopt
 ZML.UI.openSettings(window, group);

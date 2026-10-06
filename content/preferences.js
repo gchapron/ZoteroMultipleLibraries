@@ -148,8 +148,9 @@ window.ZoteroMultipleLibrariesPrefs = {
 		this.$("zml-file-settings").hidden = !linked;
 		if (linked) {
 			let config = ZML.Settings.get(library.libraryID).fileSync;
-			this.$("zml-file-mode").value = config.mode || "none";
+			this.$("zml-file-mode").value = config.mode || "zotero";
 			this.$("zml-webdav-box").hidden = config.mode != "webdav";
+			this.updateZoteroStorageNote(config.mode);
 			this.$("zml-scheme").value = config.scheme || "https";
 			this.$("zml-url").value = config.url || "";
 			this.$("zml-username").value = config.username || "";
@@ -217,6 +218,17 @@ window.ZoteroMultipleLibrariesPrefs = {
 		}
 		menulist.value = "";
 		this.$("zml-group-select-box").hidden = groups.length == 0;
+	},
+
+	updateZoteroStorageNote(mode) {
+		let note = this.$("zml-zotero-note");
+		note.hidden = mode != "zotero";
+		if (mode == "zotero") {
+			let on = !!Zotero.Prefs.get("sync.storage.groups.enabled");
+			note.textContent = this.getString("zml-prefs-zotero-storage-note", {
+				state: this.getString(on ? "zml-prefs-state-on" : "zml-prefs-state-off"),
+			});
+		}
 	},
 
 	updateVerifyStatus(text) {
@@ -287,6 +299,7 @@ window.ZoteroMultipleLibrariesPrefs = {
 		});
 		this.ZML.Storage.resetController(this._libraryID);
 		this.$("zml-webdav-box").hidden = mode != "webdav";
+		this.updateZoteroStorageNote(mode);
 		// Switching where files live: start the file sync history afresh so files
 		// present here are uploaded and missing ones fetched from the new place
 		if (mode != "none" && mode != previous) {
