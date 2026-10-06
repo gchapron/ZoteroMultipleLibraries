@@ -241,10 +241,16 @@ For a linked library whose file mode is WebDAV the plugin therefore:
   the URIs from those values. Everything else (verification, `.prop`/`.zip`
   upload and download, purging) is Zotero's code unchanged.
 
-Zotero's own WebDAV preferences and the "Zotero Storage Server" login
-entries are never read for use nor written; the only read is the URL, to
-refuse a folder that My Library already syncs to (two libraries in one
-`zotero/` folder would collide).
+A library can also reuse My Library's WebDAV server ("Use My Library's
+WebDAV server and account"): the controller then takes scheme, URL and
+username from Zotero's WebDAV preferences, puts the files under
+`<URL>/ZoteroMultipleLibraries/<groupID>/zotero/` (creating those folders
+during verification), and asks Zotero's own WebDAV controller for the
+password at sync time, so no copy of it is stored. With a custom server,
+Zotero's WebDAV preferences and the "Zotero Storage Server" login entries
+are never read for use nor written; the only read is the URL, to refuse a
+folder that My Library already syncs to (two libraries in one `zotero/`
+folder would collide).
 
 ### What was and was not tested
 
