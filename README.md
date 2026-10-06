@@ -72,16 +72,27 @@ to get a synced extra library:
   zotero.org; the plugin keeps showing it at the top level of the tree.
 - **Show a group library as an extra library.** Any group library on this
   computer can be turned into an extra library (Libraries section, or
-  right-click it under "Group Libraries" → Show as Extra Library). This is
-  also how you set up, on another computer, a library that is already synced:
-  after a sync the group is there with its content, so adopt it rather than
-  creating anything.
+  right-click it under "Group Libraries" → Show as Extra Library). On another
+  computer, a library made extra elsewhere with this plugin is adopted
+  automatically after a sync (see below); this manual step is for other group
+  libraries.
 
 ![Settings for a synced library](docs/screenshot-settings.png)
 
 For a synced library, "Sync this library with my Zotero account" pauses or
 resumes its sync (Zotero's own "libraries to skip" setting), and "Show under
 Group Libraries…" turns it back into an ordinary group library.
+
+**Other computers follow automatically.** The plugin stores, in the group's
+own synced settings on zotero.org, a marker saying that the group is an extra
+library together with its file syncing choice (mode, and for a WebDAV server
+its address and username, never a password). A second computer with the
+plugin that syncs the group shows it as an extra library by itself, with the
+same file syncing; only a custom WebDAV server's password has to be entered
+there. Changes to the choice on any computer propagate to the others. A
+library adopted without such a marker (set up with an older version
+elsewhere) starts with no file syncing until you choose, since the choice has
+to be the same everywhere.
 
 **Files** of a synced library go to one of:
 

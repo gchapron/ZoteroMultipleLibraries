@@ -212,6 +212,24 @@ Libraries" (`releaseGroup()`) removes the settings row and the password.
 Linking a local library to a group that already contains items is refused and
 offers adopting instead.
 
+### Settings shared between computers
+
+Zotero syncs per-library synced settings (`Zotero.SyncedSettings`) for
+group libraries through the API (`/groups/<id>/settings`), which is how tag
+colours travel between computers. The plugin stores a marker there under the
+key `zoteroMultipleLibraries`: `{ extraLibrary: true, fileSync: { mode,
+useMain, scheme, url, username } }`, never a password. It is written when a
+library is linked, when it is adopted without a marker and a choice is then
+made, and whenever the file syncing choice changes; it is cleared when the
+library is shown under Group Libraries again (with a local tombstone so the
+marker does not re-adopt it on that computer). A notifier observer on
+`setting` events and a startup scan adopt group libraries that carry the
+marker and apply changes to linked ones; after applying, the WebDAV server
+is verified quietly when the credentials are at hand, because Zotero skips
+an unverified WebDAV server, including for on-demand downloads. A library
+adopted without a marker gets file mode `unset`: nothing is synced until
+the user chooses, and the pane says so.
+
 ### Per-library WebDAV files
 
 Zotero chooses a library's file-sync mode in
