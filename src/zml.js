@@ -14,6 +14,8 @@ var ZoteroMultipleLibraries = {
 	// Sub-module files, in load order
 	_modules: [
 		"util.js",
+		"libraries.js",
+		"core.js",
 	],
 
 	_windows: new Set(),
@@ -31,7 +33,14 @@ var ZoteroMultipleLibraries = {
 		}
 		this.Util.log(`starting version ${version} (reason ${reason})`);
 
+		// Public handle (Run JavaScript, other plugins, tests)
+		Zotero.MultipleLibraries = this;
+
 		await Zotero.uiReadyPromise;
+
+		// Make sure Zotero core never syncs local libraries, even without us
+		this.Libraries.ensureAllSkipped();
+		this.Core.init();
 
 		// Windows that are already open don't get onMainWindowLoad
 		for (let win of Zotero.getMainWindows()) {
@@ -61,7 +70,11 @@ var ZoteroMultipleLibraries = {
 		for (let win of Array.from(this._windows)) {
 			this.onMainWindowUnload(win);
 		}
+		this.Core.uninit();
 		this.Util.Patches.unwrapAll();
+		if (Zotero.MultipleLibraries === this) {
+			delete Zotero.MultipleLibraries;
+		}
 		this.started = false;
 	},
 };
