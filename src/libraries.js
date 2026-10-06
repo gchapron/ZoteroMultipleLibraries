@@ -236,10 +236,25 @@ ZoteroMultipleLibraries.Libraries = {
 			e.code = "invalid-group";
 			throw e;
 		}
-		if (Zotero.Groups.exists(groupID)) {
-			let e = new Error(`Group ${groupID} already exists on this computer`);
-			e.code = "group-exists";
-			throw e;
+		let existing = Zotero.Groups.get(groupID);
+		if (existing) {
+			if (this.isManagedLibrary(existing)) {
+				let e = new Error(`Group ${groupID} is already an extra library`);
+				e.code = "group-managed";
+				throw e;
+			}
+			if (await this.hasContent(existing.libraryID)) {
+				let e = new Error(`Group ${groupID} ("${existing.name}") already exists on this computer and is not empty`);
+				e.code = "group-not-empty";
+				e.groupName = existing.name;
+				throw e;
+			}
+			// Zotero's sync already downloaded the (still empty) group, which is the
+			// normal case right after creating it on zotero.org: replace that empty
+			// local copy with this library. The next sync re-downloads the group's
+			// metadata and uploads the library's content.
+			ZML.Util.log(`replacing empty group library ${existing.libraryID} (group ${groupID}) with library ${library.libraryID}`);
+			await existing.eraseTx();
 		}
 
 		let libraryID = library.libraryID;
@@ -266,6 +281,41 @@ ZoteroMultipleLibraries.Libraries = {
 
 		ZML.Util.log(`linked library ${libraryID} to zotero.org group ${groupID} (was ${oldGroupID})`);
 		await ZML.Tree.reloadAll();
+	},
+
+	/**
+	 * Whether a library holds any items (including trashed), collections or searches
+	 */
+	async hasContent(libraryID) {
+		for (let table of ["items", "collections", "savedSearches"]) {
+			let count = await Zotero.DB.valueQueryAsync(
+				`SELECT COUNT(*) FROM ${table} WHERE libraryID=?`, libraryID
+			);
+			if (count) {
+				return true;
+			}
+		}
+		return false;
+	},
+
+	/**
+	 * Real group libraries on this computer that are empty and not managed:
+	 * typically groups just created on zotero.org and downloaded by sync,
+	 * i.e. candidates for linking
+	 *
+	 * @return {Promise<Zotero.Group[]>}
+	 */
+	async getLinkableGroups() {
+		let groups = Zotero.Libraries.getAll().filter(
+			l => l.libraryType == "group" && !this.isManagedLibrary(l)
+		);
+		let result = [];
+		for (let group of groups) {
+			if (!(await this.hasContent(group.libraryID))) {
+				result.push(group);
+			}
+		}
+		return this._sorted(result);
 	},
 
 	/**

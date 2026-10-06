@@ -255,14 +255,26 @@ ZoteroMultipleLibraries.UI = {
 				Services.prompt.alert(window, title, this._getString("zml-error-not-local"));
 				return false;
 			}
-			if (Zotero.Groups.exists(groupID)) {
-				Services.prompt.alert(window, title, this._getString("zml-error-group-exists", { groupID: String(groupID) }));
-				return false;
+			let existing = Zotero.Groups.get(groupID);
+			if (existing) {
+				// Refuse early with a clear message; linkToGroup() checks again
+				if (ZML.Libraries.isManagedLibrary(existing)) {
+					Services.prompt.alert(window, title, this._getString("zml-error-group-managed", { groupID: String(groupID) }));
+					return false;
+				}
+				if (await ZML.Libraries.hasContent(existing.libraryID)) {
+					Services.prompt.alert(window, title, this._getString("zml-error-group-not-empty", { groupID: String(groupID), name: existing.name }));
+					return false;
+				}
+			}
+			let text = this._getString("zml-link-confirm-text", { name: library.name, groupID: String(groupID) });
+			if (existing) {
+				text += "\n\n" + this._getString("zml-link-confirm-replace", { name: existing.name });
 			}
 			let index = Zotero.Prompt.confirm({
 				window,
 				title,
-				text: this._getString("zml-link-confirm-text", { name: library.name, groupID: String(groupID) }),
+				text,
 				button0: this._getString("zml-link-confirm-button"),
 				button1: Services.prompt.BUTTON_TITLE_CANCEL,
 				defaultButton: 1,
@@ -275,7 +287,24 @@ ZoteroMultipleLibraries.UI = {
 		}
 		catch (e) {
 			ZML.Util.error(e);
-			Services.prompt.alert(window, title, String(e));
+			let msg;
+			switch (e.code) {
+				case "group-not-empty":
+					msg = this._getString("zml-error-group-not-empty", { groupID: String(groupID), name: e.groupName || "" });
+					break;
+				case "group-managed":
+					msg = this._getString("zml-error-group-managed", { groupID: String(groupID) });
+					break;
+				case "invalid-group":
+					msg = this._getString("zml-error-group-id-invalid");
+					break;
+				case "not-local":
+					msg = this._getString("zml-error-not-local");
+					break;
+				default:
+					msg = String(e);
+			}
+			Services.prompt.alert(window, title, msg);
 			return false;
 		}
 	},

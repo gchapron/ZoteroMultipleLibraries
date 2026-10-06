@@ -36,6 +36,12 @@ window.ZoteroMultipleLibrariesPrefs = {
 		this.$("zml-rename").addEventListener("command", () => this.renameLibrary());
 		this.$("zml-delete").addEventListener("command", () => this.deleteLibrary());
 		this.$("zml-link").addEventListener("command", () => this.linkLibrary());
+		this.$("zml-group-select").addEventListener("command", () => {
+			let value = this.$("zml-group-select").value;
+			if (value) {
+				this.$("zml-group-id").value = value;
+			}
+		});
 		this.$("zml-sync-enabled").addEventListener("command", () => this.toggleSync());
 		this.$("zml-file-mode").addEventListener("command", () => this.changeFileMode());
 		for (let id of ["zml-scheme"]) {
@@ -128,6 +134,9 @@ window.ZoteroMultipleLibrariesPrefs = {
 			? this.getString("zml-prefs-status-linked", { groupID: String(library.groupID) })
 			: this.getString("zml-prefs-status-local");
 		this.$("zml-link-box").hidden = linked;
+		if (!linked) {
+			await this.refreshLinkableGroups();
+		}
 		this.$("zml-sync-enabled").hidden = !linked;
 		this.$("zml-sync-enabled").checked = linked && ZML.Libraries.isSyncEnabled(library);
 
@@ -143,6 +152,29 @@ window.ZoteroMultipleLibrariesPrefs = {
 			this.$("zml-password").value = await ZML.Storage.getPassword(library.libraryID);
 			this.updateVerifyStatus();
 		}
+	},
+
+	/**
+	 * Empty, not yet managed group libraries (e.g., a group just created on
+	 * zotero.org and downloaded by sync) that can be linked without typing an ID
+	 */
+	async refreshLinkableGroups() {
+		let groups = await this.ZML.Libraries.getLinkableGroups();
+		let menulist = this.$("zml-group-select");
+		let popup = menulist.menupopup || menulist.querySelector("menupopup");
+		popup.replaceChildren();
+		let placeholder = document.createXULElement("menuitem");
+		placeholder.setAttribute("label", this.getString("zml-prefs-group-select-placeholder"));
+		placeholder.setAttribute("value", "");
+		popup.appendChild(placeholder);
+		for (let group of groups) {
+			let item = document.createXULElement("menuitem");
+			item.setAttribute("label", `${group.name} (${group.groupID})`);
+			item.setAttribute("value", String(group.groupID));
+			popup.appendChild(item);
+		}
+		menulist.value = "";
+		this.$("zml-group-select-box").hidden = groups.length == 0;
 	},
 
 	updateVerifyStatus(text) {
