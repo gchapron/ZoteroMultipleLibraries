@@ -68,12 +68,12 @@ library's content to that group and takes the group's name from zotero.org;
 the plugin keeps showing it at the top level of the tree.
 
 The plugin links by itself only when there is no doubt: exactly one library
-waiting and exactly one new, empty group that you can edit. Empty groups
-that were already on this computer when you ticked the box are never taken.
-If more than one new group appears, the status line says so and More options
-→ **Use a group by number** lets you choose one (or type its number, the one
-in its web address). Unticking the box before the group arrives stops
-waiting.
+waiting, exactly one new, empty group, and zotero.org confirms it is a
+private group you own, with nothing in it, made after you ticked the box.
+Empty groups that were already on this computer when you ticked the box are
+never taken. Otherwise the status line asks you to choose under More options
+→ **Use a group by number** (or type its number, the one in its web address).
+Unticking the box before the group arrives stops waiting.
 
 Your other computers show the library next to My Library by themselves once
 it has synced. Any group library can also be shown that way by hand: More

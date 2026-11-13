@@ -41,8 +41,8 @@ var ZoteroMultipleLibraries = {
 		// chrome://zotero-multiple-libraries/content/: icons there follow the
 		// theme's colour (context-fill), which file:// and jar: icons do not
 		try {
-			this._chromeHandle = Cc["@mozilla.org/addons/addon-manager-startup;1"]
-				.getService(Ci.amIAddonManagerStartup)
+			this._chromeHandle = Components.classes["@mozilla.org/addons/addon-manager-startup;1"]
+				.getService(Components.interfaces.amIAddonManagerStartup)
 				.registerChrome(Services.io.newURI(rootURI + "manifest.json"), [
 					["content", "zotero-multiple-libraries", "content/"],
 				]);
@@ -70,6 +70,10 @@ var ZoteroMultipleLibraries = {
 		await this.Shared.purgeLegacy();
 		await this.Shared.scanAll();
 		this.Storage.scheduleQuietVerification();
+		// A library left waiting for its group when Zotero last quit
+		if (this.Libraries.getAll().some(l => this.Libraries.isLinkPending(l))) {
+			this.Libraries.scheduleResolve(5000);
+		}
 
 		this.prefPaneID = await Zotero.PreferencePanes.register({
 			pluginID: id,

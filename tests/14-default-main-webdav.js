@@ -60,9 +60,12 @@ try {
 		displayURL: ZML.Storage.getDisplayRootURL(a.libraryID),
 		shared: ZML.Shared.read(a.libraryID),
 	};
-	// The folder is made by verification, and a file reaches it
+	// Linking checks the server by itself (which makes the folder)
+	for (let i = 0; i < 50 && !ZML.Settings.get(a.libraryID).fileSync.verified; i++) {
+		await Zotero.Promise.delay(100);
+	}
+	out.A.verifiedByItself = !!ZML.Settings.get(a.libraryID).fileSync.verified;
 	let controller = ZML.Storage.getController(a.libraryID, {});
-	await controller.checkServer();
 	let item = new Zotero.Item("book");
 	item.libraryID = a.libraryID;
 	item.setField("title", "Default DAV book");
@@ -88,7 +91,7 @@ try {
 	out.pass = out.beforeLink.mode == "zotero"
 		&& out.A.mode == "webdav" && out.A.useMain === true && out.A.zoteroMode == "webdav"
 		&& out.A.shared && out.A.shared.fileSync.mode == "webdav" && out.A.shared.fileSync.useMain === true
-		&& out.A.uploaded && out.A.uploadErrors.length == 0 && out.A.zipOnServerStatus == 200
+		&& out.A.verifiedByItself && out.A.uploaded && out.A.uploadErrors.length == 0 && out.A.zipOnServerStatus == 200
 		&& out.B.mode == "zotero" && out.B.useMain === false;
 }
 finally {

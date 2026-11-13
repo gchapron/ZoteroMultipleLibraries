@@ -43,5 +43,5 @@ if (button) {
 	}
 }
 out.pass = out.present && out.beforeNewCollection && out.onlyOne && out.tooltip == "New Library…"
-	&& /add-library\.svg/.test(out.icon) && out.created && out.selected;
+	&& /^url\("chrome:\/\/zotero-multiple-libraries\/content\/add-library\.svg/.test(out.icon) && out.created && out.selected;
 return out;

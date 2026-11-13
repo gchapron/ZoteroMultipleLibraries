@@ -261,9 +261,13 @@ window.ZoteroMultipleLibrariesPrefs = {
 				{ groupID: String(library.groupID) });
 		}
 		else if (pending) {
-			let ambiguous = (await ZML.Libraries.getPendingCandidates()).length > 1;
-			status = this.getString(ambiguous ? "zml-prefs-status-ambiguous" : "zml-prefs-status-pending");
-			if (ambiguous) {
+			let state = await ZML.Libraries.getPendingState(library);
+			status = this.getString({
+				choose: "zml-prefs-status-ambiguous",
+				existing: "zml-prefs-status-existing",
+			}[state] || "zml-prefs-status-pending");
+			if (state == "choose" || state == "existing") {
+				// The group is picked by hand there
 				this.setMoreOpen(true);
 			}
 		}
@@ -432,11 +436,9 @@ window.ZoteroMultipleLibrariesPrefs = {
 		try {
 			// Same as the toolbar button; errors (e.g., no account) are shown by Zotero
 			await Zotero.Sync.Runner.sync();
-			let result = await this.ZML.Libraries.resolvePendingLinks();
-			if (result.ambiguous) {
-				text = this.getString("zml-prefs-check-ambiguous");
-			}
-			else if (!result.linked.length && this.library && this.ZML.Libraries.isLinkPending(this.library)) {
+			await this.ZML.Libraries.resolvePendingLinks();
+			let state = this.library && await this.ZML.Libraries.getPendingState(this.library);
+			if (state == "waiting") {
 				text = this.getString("zml-prefs-check-not-yet");
 			}
 		}
@@ -483,6 +485,18 @@ window.ZoteroMultipleLibrariesPrefs = {
 			return;
 		}
 		let checked = this.$("zml-sync-enabled").checked;
+		try {
+			await this._toggleSync(library, checked);
+		}
+		catch (e) {
+			ZML.Util.error(e);
+			Services.prompt.alert(window, this.getString("zml-sync-confirm-title"), String(e));
+		}
+		await this.render();
+	},
+
+	async _toggleSync(library, checked) {
+		const ZML = this.ZML;
 		if (ZML.Libraries.isLinkedLibrary(library)) {
 			ZML.Libraries.setSyncEnabled(library, checked);
 		}
@@ -496,17 +510,14 @@ window.ZoteroMultipleLibrariesPrefs = {
 				text: this.getString("zml-sync-confirm-text", { name: library.name }),
 				button0: this.getString("zml-sync-confirm-button"),
 				button1: Services.prompt.BUTTON_TITLE_CANCEL,
-				defaultButton: 0,
+				// Uploading can't be undone: Enter must not do it
+				defaultButton: 1,
 			});
 			if (index !== 0) {
-				this.$("zml-sync-enabled").checked = false;
 				return;
 			}
 			await ZML.Libraries.requestLink(library);
-			// The group may already be here (made before ticking): look now
-			await ZML.Libraries.resolvePendingLinks();
 		}
-		await this.render();
 	},
 
 	async releaseGroup() {

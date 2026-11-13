@@ -293,6 +293,12 @@ ZoteroMultipleLibraries.Libraries = {
 		// Tell other computers that this group is an extra library, with the
 		// file syncing choice (My Library's WebDAV if it has one, else Zotero storage)
 		await ZML.Shared.publish(libraryID);
+		this._needsChoice.delete(libraryID);
+		// Zotero skips an unchecked WebDAV server, and checking it makes the
+		// library's folder: do it now rather than at the next start
+		if (ZML.Settings.get(libraryID).fileSync.mode == "webdav") {
+			ZML.Storage.verifyQuietly(libraryID).catch(e => ZML.Util.error(e));
+		}
 
 		ZML.Util.log(`linked library ${libraryID} to zotero.org group ${groupID} (was ${oldGroupID})`);
 		await ZML.Tree.reloadAll();
@@ -328,6 +334,7 @@ ZoteroMultipleLibraries.Libraries = {
 		await ZML.Settings.update(library.libraryID, (c) => {
 			c.pendingLink = { since: Date.now(), knownGroupIDs: known };
 		});
+		this._needsChoice.delete(library.libraryID);
 		ZML.Util.log(`library ${library.libraryID} waits for a new group (${known.length} empty groups already here)`);
 	},
 
@@ -337,6 +344,9 @@ ZoteroMultipleLibraries.Libraries = {
 			await ZML.Settings.update(library.libraryID, (c) => {
 				c.pendingLink = null;
 			});
+		}
+		if (library) {
+			this._needsChoice.delete(library.libraryID);
 		}
 	},
 
@@ -378,15 +388,105 @@ ZoteroMultipleLibraries.Libraries = {
 		this._linkListeners.delete(fn);
 	},
 
+	// Libraries for which linking by itself gave up: the user chooses
+	_needsChoice: new Set(),
+
+	/**
+	 * Where a waiting library stands, for the settings pane:
+	 * "waiting" (no new group yet), "choose" (not linked by itself; the user
+	 * picks the group), or "existing" (nothing new, but an empty group that was
+	 * already here may be the one, e.g. made before ticking)
+	 *
+	 * @return {Promise<String|null>} - null if the library is not waiting
+	 */
+	async getPendingState(library) {
+		if (!this.isLinkPending(library)) {
+			return null;
+		}
+		if (this._needsChoice.has(library.libraryID)) {
+			return "choose";
+		}
+		let pendingCount = this.getAll().filter(l => this.isLinkPending(l)).length;
+		let candidates = await this.getPendingCandidates();
+		if (candidates.length && (pendingCount != 1 || candidates.length != 1)) {
+			return "choose";
+		}
+		if (!candidates.length && (await this.getLinkableGroups()).length) {
+			return "existing";
+		}
+		return "waiting";
+	},
+
+	/**
+	 * Group details from zotero.org ({data: {owner, type}, meta: {numItems,
+	 * created}}), or null; on its own so that tests can stand in for the server
+	 */
+	async _fetchGroupInfo(groupID) {
+		let apiKey = await Zotero.Sync.Data.Local.getAPIKey();
+		if (!apiKey) {
+			return null;
+		}
+		return (await Zotero.Sync.Runner.getAPIClient({ apiKey }).getGroup(groupID)) || null;
+	},
+
+	/**
+	 * Whether a new group is surely the one the user made for a waiting
+	 * library: a private group they own, with nothing in it, created after
+	 * (or just before) they ticked Sync, and not a library of theirs elsewhere
+	 */
+	async isOwnNewGroup(group, since) {
+		const ZML = ZoteroMultipleLibraries;
+		if (ZML.Shared.read(group.libraryID)) {
+			return false;
+		}
+		let info;
+		try {
+			info = await this._fetchGroupInfo(group.groupID);
+		}
+		catch (e) {
+			ZML.Util.log(`could not ask zotero.org about group ${group.groupID}: ${e}`);
+			return false;
+		}
+		if (!info) {
+			return false;
+		}
+		let data = info.data || {};
+		let meta = info.meta || {};
+		let userID = Zotero.Users.getCurrentUserID();
+		if (!userID || data.owner != userID || data.type != "Private") {
+			return false;
+		}
+		if (meta.numItems !== undefined && meta.numItems != 0) {
+			return false;
+		}
+		// Ten minutes' grace for clocks that disagree
+		if (meta.created && since && Date.parse(meta.created) < since - 10 * 60 * 1000) {
+			return false;
+		}
+		return true;
+	},
+
+	_resolving: null,
+
 	/**
 	 * Link a pending library to its new group, but only when there is no
-	 * doubt: exactly one library waiting and exactly one new, empty group that
-	 * the user can edit (as the owner of a private group can). Otherwise nothing
-	 * is linked and the settings pane asks.
+	 * doubt: exactly one library waiting, exactly one new, empty group that the
+	 * user can edit, and zotero.org confirms it is their own new private group.
+	 * Otherwise nothing is linked and the settings pane asks. Calls while one
+	 * is running share it.
 	 *
 	 * @return {Promise<{linked: Object[], ambiguous: Boolean, candidates: Integer[]}>}
 	 */
-	async resolvePendingLinks() {
+	resolvePendingLinks() {
+		if (!this._resolving) {
+			this._resolving = this._resolvePendingLinks().finally(() => {
+				this._resolving = null;
+			});
+		}
+		return this._resolving;
+	},
+
+	async _resolvePendingLinks() {
 		const ZML = ZoteroMultipleLibraries;
 		let result = { linked: [], ambiguous: false, candidates: [] };
 		let pending = this.getAll().filter(l => this.isLinkPending(l));
@@ -398,13 +498,33 @@ ZoteroMultipleLibraries.Libraries = {
 		if (!candidates.length) {
 			return result;
 		}
-		if (pending.length != 1 || candidates.length != 1) {
+		let giveUp = (why) => {
 			result.ambiguous = true;
-			ZML.Util.log(`${pending.length} libraries waiting, ${candidates.length} new groups: not linking by itself`);
+			for (let library of pending) {
+				this._needsChoice.add(library.libraryID);
+			}
+			ZML.Util.log(`not linking by itself: ${why}`);
 			return result;
+		};
+		if (pending.length != 1 || candidates.length != 1) {
+			return giveUp(`${pending.length} libraries waiting, ${candidates.length} new groups`);
 		}
 		let library = pending[0];
-		let groupID = candidates[0].groupID;
+		let group = candidates[0];
+		// Linking erases this (empty) group object: keep its ID
+		let groupID = group.groupID;
+		let since = ZML.Settings.get(library.libraryID).pendingLink.since;
+		if (!(await this.isOwnNewGroup(group, since))) {
+			return giveUp(`group ${groupID} is not surely the user's new private group`);
+		}
+		// Things may have moved on while zotero.org was asked
+		if (!this.isLinkPending(library) || !Zotero.Groups.get(groupID)) {
+			return result;
+		}
+		if (Zotero.Sync.Runner.syncInProgress) {
+			this.scheduleResolve();
+			return result;
+		}
 		ZML.Util.log(`linking library ${library.libraryID} to its new group ${groupID}`);
 		await this.linkToGroup(library, groupID);
 		result.linked.push({ libraryID: library.libraryID, groupID });

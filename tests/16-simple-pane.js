@@ -30,6 +30,14 @@ let prefsBefore = {};
 for (let pref of ["sync.storage.protocol", "sync.storage.scheme", "sync.storage.url", "sync.storage.username"]) {
 	prefsBefore[pref] = Zotero.Prefs.get(pref);
 }
+let origFetch = ZML.Libraries._fetchGroupInfo;
+ZML.Libraries._fetchGroupInfo = async () => ({
+	data: { owner: Zotero.Users.getCurrentUserID(), type: "Private" },
+	meta: { numItems: 0, created: new Date().toISOString() },
+});
+if (!Zotero.Users.getCurrentUserID()) {
+	await Zotero.Users.setCurrentUserID(1);
+}
 let prefWin = null;
 try {
 	await clean();
@@ -127,6 +135,7 @@ catch (e) {
 	out.error = String(e) + "\n" + e.stack;
 }
 finally {
+	ZML.Libraries._fetchGroupInfo = origFetch;
 	if (prefWin) {
 		prefWin.close();
 	}
