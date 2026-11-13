@@ -41,7 +41,9 @@ out.pane = {
 	fileUnavailableVisible: !$("zml-file-unavailable").hidden,
 	fileSettingsVisible: !$("zml-file-settings").hidden,
 	enableSyncLabel: $("zml-link").getAttribute("label"),
-	stepsVisible: !$("zml-open-groups").hidden && !$("zml-sync-now").hidden,
+	pendingVisible: !$("zml-pending-box").hidden,
+	moreOpen: !$("zml-more-box").hidden,
+	filesRowVisible: !$("zml-files-row").hidden,
 	selectPrefCleared: ZML.Util.getPref("selectLibrary"),
 };
 

@@ -296,6 +296,14 @@ ZoteroMultipleLibraries.Libraries = {
 
 		ZML.Util.log(`linked library ${libraryID} to zotero.org group ${groupID} (was ${oldGroupID})`);
 		await ZML.Tree.reloadAll();
+		for (let fn of this._linkListeners) {
+			try {
+				fn(library);
+			}
+			catch (e) {
+				ZML.Util.error(e);
+			}
+		}
 	},
 
 	//
@@ -339,6 +347,38 @@ ZoteroMultipleLibraries.Libraries = {
 	},
 
 	/**
+	 * New, empty, editable groups that arrived since libraries started waiting
+	 * (empty groups already here at that time are never candidates)
+	 *
+	 * @return {Promise<Zotero.Group[]>}
+	 */
+	async getPendingCandidates() {
+		const Settings = ZoteroMultipleLibraries.Settings;
+		let known = new Set();
+		for (let library of this.getAll().filter(l => this.isLinkPending(l))) {
+			for (let id of Settings.get(library.libraryID).pendingLink.knownGroupIDs || []) {
+				known.add(id);
+			}
+		}
+		return (await this.getLinkableGroups())
+			.filter(g => !known.has(g.groupID) && g.editable && g.filesEditable);
+	},
+
+	_linkListeners: new Set(),
+
+	/**
+	 * Called with (library) after any library is linked, e.g. by itself in
+	 * the background, so that an open settings pane can show it
+	 */
+	addLinkListener(fn) {
+		this._linkListeners.add(fn);
+	},
+
+	removeLinkListener(fn) {
+		this._linkListeners.delete(fn);
+	},
+
+	/**
 	 * Link a pending library to its new group, but only when there is no
 	 * doubt: exactly one library waiting and exactly one new, empty group that
 	 * the user can edit (as the owner of a private group can). Otherwise nothing
@@ -353,14 +393,7 @@ ZoteroMultipleLibraries.Libraries = {
 		if (!pending.length) {
 			return result;
 		}
-		let known = new Set();
-		for (let library of pending) {
-			for (let id of ZML.Settings.get(library.libraryID).pendingLink.knownGroupIDs || []) {
-				known.add(id);
-			}
-		}
-		let candidates = (await this.getLinkableGroups())
-			.filter(g => !known.has(g.groupID) && g.editable && g.filesEditable);
+		let candidates = await this.getPendingCandidates();
 		result.candidates = candidates.map(g => g.groupID);
 		if (!candidates.length) {
 			return result;

@@ -20,6 +20,9 @@ window.ZoteroMultipleLibrariesPrefs = {
 	_libraryID: null,
 	_initialized: false,
 	_notifierID: null,
+	_moreOpen: false,
+	_awaitingReturn: false,
+	_onLinked: null,
 
 	$(id) {
 		return document.getElementById(id);
@@ -50,7 +53,20 @@ window.ZoteroMultipleLibrariesPrefs = {
 
 		// Syncing
 		this.$("zml-open-groups").addEventListener("command", () => {
+			// Check by itself once the user is back from the browser
+			this._awaitingReturn = true;
 			Zotero.launchURL("https://www.zotero.org/groups/new");
+		});
+		window.addEventListener("focus", () => {
+			if (this._awaitingReturn && this.library && this.ZML.Libraries.isLinkPending(this.library)) {
+				this._awaitingReturn = false;
+				this.syncNow();
+			}
+		});
+		this.$("zml-more-toggle").addEventListener("command", () => this.setMoreOpen(!this._moreOpen));
+		this.$("zml-files-change").addEventListener("command", () => {
+			this.setMoreOpen(true);
+			this.$("zml-file-box").scrollIntoView({ block: "start", behavior: "smooth" });
 		});
 		this.$("zml-sync-now").addEventListener("command", () => this.syncNow());
 		this.$("zml-group-select").addEventListener("command", () => {
@@ -96,11 +112,21 @@ window.ZoteroMultipleLibrariesPrefs = {
 				}
 			},
 		}, ["group", "setting"], "zotero-multiple-libraries-prefs");
+		// A waiting library linked by itself in the background
+		this._onLinked = (library) => {
+			if (!window.closed && library.libraryID == this._libraryID) {
+				this.refreshList();
+			}
+		};
+		this.ZML.Libraries.addLinkListener(this._onLinked);
 		window.addEventListener("unload", () => {
 			if (this._notifierID) {
 				Zotero.Notifier.unregisterObserver(this._notifierID);
 			}
+			this.ZML.Libraries.removeLinkListener(this._onLinked);
 		}, { once: true });
+
+		this.setMoreOpen(false);
 
 		// "Library Settings…" while the pane is already open
 		let container = this.$("zml-prefs-root").parentElement;
@@ -214,35 +240,81 @@ window.ZoteroMultipleLibrariesPrefs = {
 		for (let id of ["zml-rename", "zml-delete"]) {
 			this.$(id).disabled = !hasLibrary;
 		}
-		this.$("zml-sync-box").hidden = !hasLibrary;
-		this.$("zml-file-box").hidden = !hasLibrary;
+		for (let id of ["zml-sync-box", "zml-file-box", "zml-link-box", "zml-release-box"]) {
+			this.$(id).hidden = !hasLibrary;
+		}
 		if (!hasLibrary) {
 			return;
 		}
 
 		let linked = ZML.Libraries.isLinkedLibrary(library);
+		let pending = ZML.Libraries.isLinkPending(library);
 		this.$("zml-sync-heading").textContent = this.getString("zml-prefs-sync-heading", { name: library.name });
 		this.$("zml-file-heading").textContent = this.getString("zml-prefs-file-heading", { name: library.name });
 
-		// Syncing
-		this.$("zml-sync-status").textContent = linked
-			? this.getString("zml-prefs-status-linked", { groupID: String(library.groupID) })
-			: this.getString("zml-prefs-status-local");
-		this.$("zml-link-box").hidden = linked;
-		this.$("zml-linked-box").hidden = !linked;
+		// One tick: sync (or wait for the group to sync with), or pause
+		let enabled = linked && ZML.Libraries.isSyncEnabled(library);
+		this.$("zml-sync-enabled").checked = linked ? enabled : pending;
+		let status;
 		if (linked) {
-			this.$("zml-sync-enabled").checked = ZML.Libraries.isSyncEnabled(library);
+			status = this.getString(enabled ? "zml-prefs-status-linked" : "zml-prefs-status-paused",
+				{ groupID: String(library.groupID) });
+		}
+		else if (pending) {
+			let ambiguous = (await ZML.Libraries.getPendingCandidates()).length > 1;
+			status = this.getString(ambiguous ? "zml-prefs-status-ambiguous" : "zml-prefs-status-pending");
+			if (ambiguous) {
+				this.setMoreOpen(true);
+			}
 		}
 		else {
+			status = this.getString("zml-prefs-status-local");
+		}
+		this.$("zml-sync-status").textContent = status;
+		this.$("zml-pending-box").hidden = !pending;
+		this.$("zml-link-box").hidden = linked;
+		this.$("zml-release-box").hidden = !linked;
+		if (!linked) {
 			await this.refreshLinkableGroups();
 		}
 
 		// Files
+		this.$("zml-files-row").hidden = !linked;
 		this.$("zml-file-unavailable").hidden = linked;
 		this.$("zml-file-settings").hidden = !linked;
 		if (linked) {
 			await this.renderFileSettings();
 		}
+	},
+
+	setMoreOpen(open) {
+		this._moreOpen = !!open;
+		this.$("zml-more-box").hidden = !this._moreOpen;
+		this.$("zml-more-toggle").setAttribute("label",
+			this.getString(this._moreOpen ? "zml-prefs-more-open" : "zml-prefs-more-closed"));
+	},
+
+	/**
+	 * One line saying where the selected library's files go
+	 */
+	renderFilesSummary() {
+		const ZML = this.ZML;
+		let config = ZML.Settings.get(this._libraryID).fileSync;
+		let id;
+		switch (config.mode) {
+			case "webdav":
+				id = config.useMain ? "zml-prefs-files-main" : "zml-prefs-files-custom";
+				break;
+			case "zotero":
+				id = "zml-prefs-files-zotero";
+				break;
+			case "none":
+				id = "zml-prefs-files-none";
+				break;
+			default:
+				id = "zml-prefs-files-unset";
+		}
+		this.$("zml-files-summary").textContent = this.getString(id);
 	},
 
 	/**
@@ -275,7 +347,12 @@ window.ZoteroMultipleLibrariesPrefs = {
 		let config = ZML.Settings.get(libraryID).fileSync;
 		let unset = config.mode == "unset";
 		let mode = ZML.Storage.MODES.includes(config.mode) ? config.mode : (unset ? "" : "zotero");
+		this.renderFilesSummary();
 		this.$("zml-file-deliberate-note").hidden = !unset;
+		if (unset) {
+			// A choice is needed: show where it is made
+			this.setMoreOpen(true);
+		}
 		let radiogroup = this.$("zml-file-mode");
 		if (mode) {
 			radiogroup.value = mode;
@@ -351,9 +428,17 @@ window.ZoteroMultipleLibrariesPrefs = {
 		let status = this.$("zml-sync-now-status");
 		button.disabled = true;
 		status.textContent = this.getString("zml-prefs-sync-now-running");
+		let text = "";
 		try {
 			// Same as the toolbar button; errors (e.g., no account) are shown by Zotero
 			await Zotero.Sync.Runner.sync();
+			let result = await this.ZML.Libraries.resolvePendingLinks();
+			if (result.ambiguous) {
+				text = this.getString("zml-prefs-check-ambiguous");
+			}
+			else if (!result.linked.length && this.library && this.ZML.Libraries.isLinkPending(this.library)) {
+				text = this.getString("zml-prefs-check-not-yet");
+			}
 		}
 		catch (e) {
 			this.ZML.Util.error(e);
@@ -362,8 +447,7 @@ window.ZoteroMultipleLibrariesPrefs = {
 			button.disabled = false;
 		}
 		await this.refreshList();
-		let count = (await this.ZML.Libraries.getLinkableGroups()).length;
-		status.textContent = this.getString("zml-prefs-sync-now-done", { count });
+		status.textContent = text;
 	},
 
 	async linkLibrary() {
@@ -387,10 +471,42 @@ window.ZoteroMultipleLibrariesPrefs = {
 		}
 	},
 
-	toggleSync() {
-		if (this.library && this.ZML.Libraries.isLinkedLibrary(this.library)) {
-			this.ZML.Libraries.setSyncEnabled(this.library, this.$("zml-sync-enabled").checked);
+	/**
+	 * The one tick. Synced library: pause or resume. Local library: after one
+	 * confirmation, wait for the group the user makes on zotero.org (linked by
+	 * itself when it arrives); unticking stops waiting.
+	 */
+	async toggleSync() {
+		const ZML = this.ZML;
+		let library = this.library;
+		if (!library) {
+			return;
 		}
+		let checked = this.$("zml-sync-enabled").checked;
+		if (ZML.Libraries.isLinkedLibrary(library)) {
+			ZML.Libraries.setSyncEnabled(library, checked);
+		}
+		else if (!checked) {
+			await ZML.Libraries.cancelLink(library);
+		}
+		else if (!ZML.Libraries.isLinkPending(library)) {
+			let index = Zotero.Prompt.confirm({
+				window,
+				title: this.getString("zml-sync-confirm-title"),
+				text: this.getString("zml-sync-confirm-text", { name: library.name }),
+				button0: this.getString("zml-sync-confirm-button"),
+				button1: Services.prompt.BUTTON_TITLE_CANCEL,
+				defaultButton: 0,
+			});
+			if (index !== 0) {
+				this.$("zml-sync-enabled").checked = false;
+				return;
+			}
+			await ZML.Libraries.requestLink(library);
+			// The group may already be here (made before ticking): look now
+			await ZML.Libraries.resolvePendingLinks();
+		}
+		await this.render();
 	},
 
 	async releaseGroup() {
