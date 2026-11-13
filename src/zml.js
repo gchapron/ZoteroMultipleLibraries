@@ -38,6 +38,18 @@ var ZoteroMultipleLibraries = {
 		for (let file of this._modules) {
 			Services.scriptloader.loadSubScript(rootURI + "src/" + file);
 		}
+		// chrome://zotero-multiple-libraries/content/: icons there follow the
+		// theme's colour (context-fill), which file:// and jar: icons do not
+		try {
+			this._chromeHandle = Cc["@mozilla.org/addons/addon-manager-startup;1"]
+				.getService(Ci.amIAddonManagerStartup)
+				.registerChrome(Services.io.newURI(rootURI + "manifest.json"), [
+					["content", "zotero-multiple-libraries", "content/"],
+				]);
+		}
+		catch (e) {
+			this.Util.error(e);
+		}
 		this.Util.log(`starting version ${version} (reason ${reason})`);
 
 		// Public handle (Run JavaScript, other plugins, tests)
@@ -104,6 +116,10 @@ var ZoteroMultipleLibraries = {
 			this.prefPaneID = null;
 		}
 		this.UI.uninit();
+		if (this._chromeHandle) {
+			this._chromeHandle.destruct();
+			this._chromeHandle = null;
+		}
 		this.Core.uninit();
 		this.Storage.uninit();
 		this.Util.Patches.unwrapAll();

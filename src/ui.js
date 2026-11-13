@@ -97,6 +97,43 @@ ZoteroMultipleLibraries.UI = {
 			}
 		}
 		this._menuIDs = [];
+		for (let win of Zotero.getMainWindows()) {
+			this.removeToolbarButton(win);
+		}
+	},
+
+	TOOLBAR_BUTTON_ID: "zml-tb-library-add",
+
+	/**
+	 * "New Library…" just before Zotero's "New Collection…" in the toolbar
+	 * above the libraries and collections
+	 */
+	addToolbarButton(window) {
+		const ZML = ZoteroMultipleLibraries;
+		let doc = window.document;
+		let before = doc.getElementById("zotero-tb-collection-add");
+		if (!before || doc.getElementById(this.TOOLBAR_BUTTON_ID)) {
+			return;
+		}
+		let button = doc.createXULElement("toolbarbutton");
+		button.id = this.TOOLBAR_BUTTON_ID;
+		button.className = "zotero-tb-button";
+		button.setAttribute("tabindex", "-1");
+		button.setAttribute("data-l10n-id", "zml-tb-new-library");
+		button.style.listStyleImage = ZML._chromeHandle
+			? 'url("chrome://zotero-multiple-libraries/content/add-library.svg")'
+			: `url("${ZML.rootURI}content/add-library.svg")`;
+		// Zotero colours its own toolbar icons by button ID; match them
+		button.style.fill = "currentColor";
+		button.addEventListener("command", () => this.newLibrary(window));
+		before.before(button);
+	},
+
+	removeToolbarButton(window) {
+		let button = window.document.getElementById(this.TOOLBAR_BUTTON_ID);
+		if (button) {
+			button.remove();
+		}
 	},
 
 	/**
@@ -106,6 +143,12 @@ ZoteroMultipleLibraries.UI = {
 		const ZML = ZoteroMultipleLibraries;
 		const Patches = ZML.Util.Patches;
 		let pane = window.ZoteroPane;
+		try {
+			this.addToolbarButton(window);
+		}
+		catch (e) {
+			ZML.Util.error(e);
+		}
 		if (!pane || Patches.isWrapped(pane, "buildCollectionContextMenu")) {
 			return;
 		}

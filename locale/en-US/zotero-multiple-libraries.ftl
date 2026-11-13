@@ -35,6 +35,8 @@ zml-delete-library-button = Delete Library
 zml-error-name-empty = The library name cannot be empty.
 zml-error-name-exists = A library named “{ $name }” already exists.
 
+zml-tb-new-library =
+    .tooltiptext = New Library…
 zml-menu-library-settings =
     .label = Library Settings…
 
