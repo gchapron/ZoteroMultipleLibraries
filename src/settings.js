@@ -34,6 +34,10 @@ ZoteroMultipleLibraries.Settings = {
 				// webdav: reuse My Library's WebDAV server and account (in a
 				// subfolder of its own) instead of the custom server below
 				useMain: false,
+				// True once the user chose where files go (before or after the
+				// library syncs); until then a library not synced yet follows
+				// Storage.getPlannedFileSync()
+				chosen: false,
 				scheme: "https",
 				url: "",
 				username: "",

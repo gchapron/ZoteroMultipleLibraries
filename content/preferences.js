@@ -21,6 +21,7 @@ window.ZoteroMultipleLibrariesPrefs = {
 	_initialized: false,
 	_notifierID: null,
 	_moreOpen: false,
+	_filesState: "synced",
 	_awaitingReturn: false,
 	_onLinked: null,
 
@@ -282,13 +283,28 @@ window.ZoteroMultipleLibrariesPrefs = {
 			await this.refreshLinkableGroups();
 		}
 
-		// Files
-		this.$("zml-files-row").hidden = !linked;
-		this.$("zml-file-unavailable").hidden = linked;
-		this.$("zml-file-settings").hidden = !linked;
-		if (linked) {
-			await this.renderFileSettings();
+		// Files: where they go, or will go once the library syncs
+		this._filesState = linked ? "synced" : (pending ? "pending" : "local");
+		await this.renderFileSettings();
+	},
+
+	/**
+	 * Before the user's first change, write down what was only planned (see
+	 * Storage.getPlannedFileSync()), so that the change starts from what the
+	 * pane shows and counts as their choice from then on
+	 */
+	async _keepPlan() {
+		const ZML = this.ZML;
+		let libraryID = this._libraryID;
+		if (ZML.Settings.get(libraryID).fileSync.chosen) {
+			return;
 		}
+		let planned = ZML.Storage.getPlannedFileSync(libraryID);
+		await ZML.Settings.update(libraryID, (c) => {
+			c.fileSync.mode = planned.mode;
+			c.fileSync.useMain = planned.useMain;
+			c.fileSync.chosen = true;
+		});
 	},
 
 	setMoreOpen(open) {
@@ -303,7 +319,7 @@ window.ZoteroMultipleLibrariesPrefs = {
 	 */
 	renderFilesSummary() {
 		const ZML = this.ZML;
-		let config = ZML.Settings.get(this._libraryID).fileSync;
+		let config = ZML.Storage.getPlannedFileSync(this._libraryID);
 		let id;
 		switch (config.mode) {
 			case "webdav":
@@ -318,7 +334,7 @@ window.ZoteroMultipleLibrariesPrefs = {
 			default:
 				id = "zml-prefs-files-unset";
 		}
-		this.$("zml-files-summary").textContent = this.getString(id);
+		this.$("zml-files-summary").textContent = this.getString(id, { state: this._filesState || "synced" });
 	},
 
 	/**
@@ -348,7 +364,8 @@ window.ZoteroMultipleLibrariesPrefs = {
 	async renderFileSettings() {
 		const ZML = this.ZML;
 		let libraryID = this._libraryID;
-		let config = ZML.Settings.get(libraryID).fileSync;
+		let config = ZML.Storage.getPlannedFileSync(libraryID);
+		let local = ZML.Libraries.isLocalLibrary(libraryID);
 		let unset = config.mode == "unset";
 		let mode = ZML.Storage.MODES.includes(config.mode) ? config.mode : (unset ? "" : "zotero");
 		this.renderFilesSummary();
@@ -382,6 +399,9 @@ window.ZoteroMultipleLibrariesPrefs = {
 			this.$("zml-webdav-main").disabled = !mainAvailable;
 			this.$("zml-webdav-source").value = useMain ? "main" : "custom";
 			this.$("zml-webdav-custom-box").hidden = useMain;
+			// My Library's server is left alone until the library has its group:
+			// its folder there is named after the group
+			this.$("zml-verify-row").hidden = local && useMain;
 			this.$("zml-scheme").value = config.scheme || "https";
 			this.$("zml-url").value = config.url || "";
 			this.$("zml-username").value = config.username || "";
@@ -395,6 +415,8 @@ window.ZoteroMultipleLibrariesPrefs = {
 				this.updateVerifyStatus();
 			}
 		}
+		// Kept with the library on zotero.org: only once it is there
+		this.$("zml-shared-note").hidden = local;
 	},
 
 	/**
@@ -402,10 +424,13 @@ window.ZoteroMultipleLibrariesPrefs = {
 	 */
 	updateWebDAVFolder() {
 		const ZML = this.ZML;
-		let config = ZML.Settings.get(this._libraryID).fileSync;
+		let config = ZML.Storage.getPlannedFileSync(this._libraryID);
 		let text;
 		if (config.useMain && !ZML.Storage.mainWebDAVAvailable()) {
 			text = this.getString("zml-prefs-webdav-main-unavailable");
+		}
+		else if (config.useMain && ZML.Libraries.isLocalLibrary(this._libraryID)) {
+			text = this.getString("zml-prefs-webdav-main-later");
 		}
 		else {
 			let url = ZML.Storage.getDisplayRootURL(this._libraryID);
@@ -535,8 +560,10 @@ window.ZoteroMultipleLibrariesPrefs = {
 			return;
 		}
 		let mode = this.$("zml-file-mode").value;
+		await this._keepPlan();
 		let previous = this.ZML.Settings.get(this._libraryID).fileSync.mode;
 		if (mode == previous) {
+			await this.renderFileSettings();
 			return;
 		}
 		await this.ZML.Settings.update(this._libraryID, (c) => {
@@ -556,7 +583,8 @@ window.ZoteroMultipleLibrariesPrefs = {
 		await this.ZML.Shared.publish(this._libraryID);
 		await this.renderFileSettings();
 		if (mode == "webdav" && this.ZML.Settings.get(this._libraryID).fileSync.useMain
-				&& this.ZML.Storage.mainWebDAVAvailable()) {
+				&& this.ZML.Storage.mainWebDAVAvailable()
+				&& !this.ZML.Libraries.isLocalLibrary(this._libraryID)) {
 			await this.verifyServer({ silent: true });
 		}
 	},
@@ -572,8 +600,10 @@ window.ZoteroMultipleLibrariesPrefs = {
 			this.$("zml-webdav-source").value = "custom";
 			return;
 		}
+		await this._keepPlan();
 		let previous = !!this.ZML.Settings.get(this._libraryID).fileSync.useMain;
 		if (useMain == previous) {
+			await this.renderFileSettings();
 			return;
 		}
 		await this.ZML.Settings.update(this._libraryID, (c) => {
@@ -583,7 +613,7 @@ window.ZoteroMultipleLibrariesPrefs = {
 		this.ZML.Storage.resetController(this._libraryID);
 		await this.ZML.Shared.publish(this._libraryID);
 		await this.renderFileSettings();
-		if (useMain) {
+		if (useMain && !this.ZML.Libraries.isLocalLibrary(this._libraryID)) {
 			// Creates the library's folder on My Library's server and checks it
 			await this.verifyServer({ silent: true });
 		}
@@ -646,6 +676,7 @@ window.ZoteroMultipleLibrariesPrefs = {
 		if (!this._checkURL(url)) {
 			return false;
 		}
+		await this._keepPlan();
 		let config = ZML.Settings.get(libraryID).fileSync;
 		let oldPassword = await ZML.Storage.getPassword(libraryID);
 		let changed = config.scheme != scheme || config.url != url
@@ -674,7 +705,10 @@ window.ZoteroMultipleLibrariesPrefs = {
 		}
 		const ZML = this.ZML;
 		let libraryID = this._libraryID;
-		let useMain = !!ZML.Settings.get(libraryID).fileSync.useMain;
+		let useMain = !!ZML.Storage.getPlannedFileSync(libraryID).useMain;
+		if (useMain && ZML.Libraries.isLocalLibrary(libraryID)) {
+			return false;
+		}
 		if (!useMain && !(await this.saveWebDAVFields())) {
 			return false;
 		}

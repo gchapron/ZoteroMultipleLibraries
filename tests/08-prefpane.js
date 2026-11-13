@@ -38,7 +38,6 @@ out.pane = {
 	status: $("zml-sync-status").textContent,
 	linkBoxVisible: !$("zml-link-box").hidden,
 	syncCheckboxVisible: !$("zml-sync-enabled").hidden,
-	fileUnavailableVisible: !$("zml-file-unavailable").hidden,
 	fileSettingsVisible: !$("zml-file-settings").hidden,
 	enableSyncLabel: $("zml-link").getAttribute("label"),
 	pendingVisible: !$("zml-pending-box").hidden,

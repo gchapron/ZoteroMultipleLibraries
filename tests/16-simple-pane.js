@@ -76,6 +76,7 @@ try {
 		moreOpen: shown("zml-more-box"),
 		moreLabel: $("zml-more-toggle").getAttribute("label"),
 		filesRowShown: shown("zml-files-row"),
+		files: $("zml-files-summary").textContent,
 		stepsGone: !doc.querySelector(".zml-steps"),
 	};
 
@@ -123,7 +124,8 @@ try {
 	out.changeOpens = shown("zml-more-box") && shown("zml-file-settings") && shown("zml-release-box");
 
 	out.pass = out.local.checkboxShown && !out.local.checked && out.local.status == "Only on this computer."
-		&& !out.local.pendingShown && !out.local.moreOpen && !out.local.filesRowShown && out.local.stepsGone
+		&& !out.local.pendingShown && !out.local.moreOpen && out.local.stepsGone
+		&& out.local.filesRowShown && /^If you sync it/.test(out.local.files)
 		&& out.pending.checked && out.pending.pendingShown && out.pending.status.startsWith("Waiting")
 		&& out.foldOpens && out.foldCloses
 		&& out.syncedByItself && out.synced.checked && !out.synced.pendingShown

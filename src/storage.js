@@ -176,6 +176,26 @@ ZoteroMultipleLibraries.Storage = {
 			&& !!Zotero.Prefs.get("sync.storage.username");
 	},
 
+	/**
+	 * A library's file syncing as it is or, for a library that does not sync
+	 * yet and whose owner has not chosen, as it will be once it does: My
+	 * Library's WebDAV server if it has one (in a folder of its own), else
+	 * Zotero storage
+	 *
+	 * @return {Object} - A copy of the library's fileSync settings
+	 */
+	getPlannedFileSync(libraryID) {
+		const ZML = ZoteroMultipleLibraries;
+		let fs = Object.assign({}, ZML.Settings.get(libraryID).fileSync);
+		if (!fs.chosen && ZML.Libraries.isLocalLibrary(libraryID)
+				&& fs.mode == "zotero" && !fs.useMain && !fs.url && this.mainWebDAVAvailable()) {
+			fs.mode = "webdav";
+			fs.useMain = true;
+			fs.verified = false;
+		}
+		return fs;
+	},
+
 	_mainParentURL(libraryID) {
 		let url = (Zotero.Prefs.get("sync.storage.url") || "").trim().replace(/\/+$/, "");
 		let library = Zotero.Libraries.get(libraryID);

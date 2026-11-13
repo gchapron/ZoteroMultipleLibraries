@@ -32,6 +32,11 @@ Zotero 10 (developed and tested on 10.0.4 and 10.0.5).
 - **New library**: the library button just before New Collection above the
   collection tree, File → New Library…, or right-click anywhere in the
   collection tree → New Library…
+- **New library from a file**: File → New Library from File…, or right-click
+  in the collection tree → New Library from File… Pick a file Zotero can
+  import (RIS, BibTeX, Zotero RDF, …); it becomes a library of its own, named
+  after the file unless you type another name, instead of landing in
+  whichever library was selected.
 - **Rename**: right-click the library → Rename Library…, or double-click it.
 - **Delete**: right-click the library → Delete Library… (asks for
   confirmation; deletes the library, its items, and attachment files stored in
@@ -56,7 +61,12 @@ and a line saying where its files go. Everything rarely needed is under
 ![Settings for a library waiting for its group](docs/screenshot-settings-local.png)
 
 A new library is **only on this computer**: it exists only in this Zotero's
-data directory and does not count against your Zotero storage. To sync it,
+data directory and does not count against your Zotero storage. The files
+line already says where its files would go if you sync it (the same place as
+My Library when My Library uses WebDAV, otherwise Zotero storage), and
+**Change…** lets you pick something else, such as a WebDAV server of its
+own, before anything is uploaded; the choice is kept when syncing starts. To
+sync it,
 tick **Sync with my other computers** and confirm. A Zotero account has
 exactly one personal library on zotero.org, so a library is synced as a
 private group of your account (only you are a member): **Make the Group on
@@ -96,8 +106,8 @@ the files line):
   libraries says, and count against your Zotero storage quota as the group's
   owner;
 - **WebDAV**, either *using My Library's WebDAV server and account* (the
-  default for a newly linked library when My Library syncs its files over
-  WebDAV), in a
+  default for a library when My Library syncs its files over WebDAV, unless
+  you chose otherwise before syncing it), in a
   folder of its own (`<My Library's URL>/ZoteroMultipleLibraries/<group ID>/`,
   created when the server is checked; the plugin asks Zotero's own WebDAV code for the
   password at sync time and never stores a copy), or *a different server*

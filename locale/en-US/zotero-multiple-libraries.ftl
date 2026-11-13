@@ -7,6 +7,8 @@ zml-plugin-name = ZoteroMultipleLibraries
 
 zml-menu-new-library =
     .label = New Library…
+zml-menu-new-library-from-file =
+    .label = New Library from File…
 zml-menu-rename-library =
     .label = Rename Library…
 zml-menu-delete-library =
@@ -18,6 +20,8 @@ zml-new-library-title = New Library
 zml-new-library-text = Name of the new library:
 zml-new-library-default-name = My Second Library
 
+zml-new-library-from-file-title = New Library from File
+zml-new-library-from-file-unsupported = Zotero can’t read this file as a bibliography, so no library was made. To bring in a library from another app, use File → Import….
 zml-rename-library-title = Rename Library
 zml-rename-library-text = New name for “{ $name }”:
 
@@ -80,10 +84,30 @@ zml-prefs-sync-now-button =
     .label = Check Now
 zml-prefs-sync-now-running = Checking…
 zml-prefs-check-not-yet = Not there yet. It can take a moment after making the group.
-zml-prefs-files-main = Files: same place as My Library (WebDAV)
-zml-prefs-files-custom = Files: your own WebDAV server
-zml-prefs-files-zotero = Files: Zotero storage
-zml-prefs-files-none = Files: not synced
+zml-prefs-files-main =
+    { $state ->
+        [local] If you sync it, files go to the same place as My Library (WebDAV).
+        [pending] Files will go to the same place as My Library (WebDAV).
+       *[synced] Files: same place as My Library (WebDAV)
+    }
+zml-prefs-files-custom =
+    { $state ->
+        [local] If you sync it, files go to your own WebDAV server.
+        [pending] Files will go to your own WebDAV server.
+       *[synced] Files: your own WebDAV server
+    }
+zml-prefs-files-zotero =
+    { $state ->
+        [local] If you sync it, files go to Zotero storage.
+        [pending] Files will go to Zotero storage.
+       *[synced] Files: Zotero storage
+    }
+zml-prefs-files-none =
+    { $state ->
+        [local] If you sync it, its files stay on this computer.
+        [pending] Files will stay on this computer.
+       *[synced] Files: not synced
+    }
 zml-prefs-files-unset = Files: choose where they go
 zml-prefs-files-change-button =
     .label = Change…
@@ -109,7 +133,6 @@ zml-prefs-adopt-button =
 zml-prefs-adopt-explanation = A library made on another computer usually appears here by itself. If it shows under Group Libraries instead, choose it here.
 
 zml-prefs-file-heading = Where files of “{ $name }” go
-zml-prefs-file-sync-unavailable = Files sync once the library does.
 zml-prefs-file-deliberate = No choice yet for this library on this computer, and none came from your other computers. Choose below; your other computers will use the same.
 zml-prefs-shared-note = This choice (including a WebDAV server’s address and username, never its password) is kept with the library on zotero.org, so your other computers use the same.
 zml-prefs-password-required = Password needed on this computer: the settings came from another computer, and passwords are never shared.
@@ -131,6 +154,7 @@ zml-prefs-username-label =
 zml-prefs-password-label =
     .value = Password:
 zml-prefs-webdav-folder = Files go to { $url }
+zml-prefs-webdav-main-later = A folder of its own is made on My Library’s server when syncing starts.
 zml-prefs-webdav-folder-unknown = Each library needs a folder of its own; Zotero keeps the files in a “zotero” subfolder of the URL.
 zml-prefs-verify-button =
     .label = Check Server

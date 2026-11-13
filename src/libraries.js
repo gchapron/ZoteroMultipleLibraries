@@ -259,6 +259,9 @@ ZoteroMultipleLibraries.Libraries = {
 
 		let libraryID = library.libraryID;
 		let oldGroupID = library.groupID;
+		// Where its files go: what the user chose beforehand or, without a
+		// choice, My Library's WebDAV server if it has one, else Zotero storage
+		let planned = ZML.Storage.getPlannedFileSync(libraryID);
 
 		await Zotero.DB.executeTransaction(async () => {
 			await Zotero.DB.queryAsync(
@@ -275,15 +278,10 @@ ZoteroMultipleLibraries.Libraries = {
 		await ZML.Settings.update(libraryID, (c) => {
 			c.linked = true;
 			c.pendingLink = null;
-			// If My Library already syncs its files over WebDAV, the new library's
-			// files follow it there, in a folder of their own, rather than going to
-			// Zotero storage. File settings are only shown once a library is
-			// linked, so an untouched default here was never chosen by the user.
 			let fs = c.fileSync;
-			if (ZML.Storage.mainWebDAVAvailable()
-					&& fs.mode == "zotero" && !fs.useMain && !fs.url) {
-				fs.mode = "webdav";
-				fs.useMain = true;
+			if (fs.mode != planned.mode || !!fs.useMain != !!planned.useMain) {
+				fs.mode = planned.mode;
+				fs.useMain = planned.useMain;
 				fs.verified = false;
 			}
 		});
@@ -291,7 +289,7 @@ ZoteroMultipleLibraries.Libraries = {
 		this.unskip(oldGroupID);
 		this.unskip(groupID);
 		// Tell other computers that this group is an extra library, with the
-		// file syncing choice (My Library's WebDAV if it has one, else Zotero storage)
+		// file syncing choice
 		await ZML.Shared.publish(libraryID);
 		this._needsChoice.delete(libraryID);
 		// Zotero skips an unchecked WebDAV server, and checking it makes the
