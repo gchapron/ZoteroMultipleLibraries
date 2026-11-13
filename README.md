@@ -78,10 +78,13 @@ Group Libraries…" turns it back into an ordinary group library.
 
 Files of a synced library go to one of:
 
-- **Zotero storage**, the default: files sync through Zotero storage whatever
-  Zotero's Sync setting for group libraries says, and count against your
-  Zotero storage quota as the group's owner;
-- **WebDAV**, either *using My Library's WebDAV server and account*, in a
+- **Zotero storage**, the default when My Library does not use WebDAV: files
+  sync through Zotero storage whatever Zotero's Sync setting for group
+  libraries says, and count against your Zotero storage quota as the group's
+  owner;
+- **WebDAV**, either *using My Library's WebDAV server and account* (the
+  default for a newly linked library when My Library syncs its files over
+  WebDAV), in a
   folder of its own (`<My Library's URL>/ZoteroMultipleLibraries/<group ID>/`,
   created when you verify; the plugin asks Zotero's own WebDAV code for the
   password at sync time and never stores a copy), or *a different server*

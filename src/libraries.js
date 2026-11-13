@@ -274,12 +274,23 @@ ZoteroMultipleLibraries.Libraries = {
 
 		await ZML.Settings.update(libraryID, (c) => {
 			c.linked = true;
+			// If My Library already syncs its files over WebDAV, the new library's
+			// files follow it there, in a folder of their own, rather than going to
+			// Zotero storage. File settings are only shown once a library is
+			// linked, so an untouched default here was never chosen by the user.
+			let fs = c.fileSync;
+			if (ZML.Storage.mainWebDAVAvailable()
+					&& fs.mode == "zotero" && !fs.useMain && !fs.url) {
+				fs.mode = "webdav";
+				fs.useMain = true;
+				fs.verified = false;
+			}
 		});
 		// Let Zotero sync it (the user can opt out again in the settings pane)
 		this.unskip(oldGroupID);
 		this.unskip(groupID);
 		// Tell other computers that this group is an extra library, with the
-		// file syncing choice (Zotero storage by default)
+		// file syncing choice (My Library's WebDAV if it has one, else Zotero storage)
 		await ZML.Shared.publish(libraryID);
 
 		ZML.Util.log(`linked library ${libraryID} to zotero.org group ${groupID} (was ${oldGroupID})`);
