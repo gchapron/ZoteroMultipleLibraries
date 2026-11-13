@@ -22,6 +22,9 @@ ZoteroMultipleLibraries.Settings = {
 			// True after "Show under Group Libraries" on this computer, so that the
 			// shared marker does not adopt it again here
 			released: false,
+			// While a local library waits for its new zotero.org group:
+			// { since: <ms>, knownGroupIDs: [<empty groups already here>] }
+			pendingLink: null,
 			fileSync: {
 				// zotero: Zotero's normal behaviour for group libraries (Zotero storage,
 				//   following the Sync preference for group files) — the default

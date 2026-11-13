@@ -69,6 +69,7 @@ ZoteroMultipleLibraries.Core = {
 			Zotero.Notifier.unregisterObserver(this._notifierID);
 			this._notifierID = null;
 		}
+		ZoteroMultipleLibraries.Libraries.cancelScheduledResolve();
 	},
 
 	_observer: {
@@ -80,6 +81,10 @@ ZoteroMultipleLibraries.Core = {
 			for (let id of ids) {
 				if (action == "add" && ZML.Libraries.isLocalGroupID(id)) {
 					ZML.Libraries.ensureSkipped(id);
+				}
+				else if (action == "add") {
+					// Perhaps the group made on zotero.org for a library waiting for one
+					ZML.Libraries.scheduleResolve();
 				}
 				else if (action == "delete") {
 					if (ZML.Libraries.isLocalGroupID(id)) {

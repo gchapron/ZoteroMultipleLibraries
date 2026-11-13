@@ -274,6 +274,7 @@ ZoteroMultipleLibraries.Libraries = {
 
 		await ZML.Settings.update(libraryID, (c) => {
 			c.linked = true;
+			c.pendingLink = null;
 			// If My Library already syncs its files over WebDAV, the new library's
 			// files follow it there, in a folder of their own, rather than going to
 			// Zotero storage. File settings are only shown once a library is
@@ -295,6 +296,121 @@ ZoteroMultipleLibraries.Libraries = {
 
 		ZML.Util.log(`linked library ${libraryID} to zotero.org group ${groupID} (was ${oldGroupID})`);
 		await ZML.Tree.reloadAll();
+	},
+
+	//
+	// One-tick syncing: the user asks to sync a local library, makes a private
+	// group on zotero.org, and the group Zotero downloads next is linked here
+	//
+
+	/**
+	 * Wait for a new group for this local library. Empty groups already on this
+	 * computer are remembered so that they are never taken for the new one.
+	 *
+	 * @param {Zotero.Group} library
+	 */
+	async requestLink(library) {
+		const ZML = ZoteroMultipleLibraries;
+		if (!this.isLocalLibrary(library)) {
+			let e = new Error("Only a local library can be linked to a group");
+			e.code = "not-local";
+			throw e;
+		}
+		let known = (await this.getLinkableGroups()).map(g => g.groupID);
+		await ZML.Settings.update(library.libraryID, (c) => {
+			c.pendingLink = { since: Date.now(), knownGroupIDs: known };
+		});
+		ZML.Util.log(`library ${library.libraryID} waits for a new group (${known.length} empty groups already here)`);
+	},
+
+	async cancelLink(library) {
+		const ZML = ZoteroMultipleLibraries;
+		if (library && ZML.Settings.has(library.libraryID)) {
+			await ZML.Settings.update(library.libraryID, (c) => {
+				c.pendingLink = null;
+			});
+		}
+	},
+
+	isLinkPending(library) {
+		const Settings = ZoteroMultipleLibraries.Settings;
+		return !!library && this.isLocalLibrary(library) && Settings.has(library.libraryID)
+			&& !!Settings.get(library.libraryID).pendingLink;
+	},
+
+	/**
+	 * Link a pending library to its new group, but only when there is no
+	 * doubt: exactly one library waiting and exactly one new, empty group that
+	 * the user can edit (as the owner of a private group can). Otherwise nothing
+	 * is linked and the settings pane asks.
+	 *
+	 * @return {Promise<{linked: Object[], ambiguous: Boolean, candidates: Integer[]}>}
+	 */
+	async resolvePendingLinks() {
+		const ZML = ZoteroMultipleLibraries;
+		let result = { linked: [], ambiguous: false, candidates: [] };
+		let pending = this.getAll().filter(l => this.isLinkPending(l));
+		if (!pending.length) {
+			return result;
+		}
+		let known = new Set();
+		for (let library of pending) {
+			for (let id of ZML.Settings.get(library.libraryID).pendingLink.knownGroupIDs || []) {
+				known.add(id);
+			}
+		}
+		let candidates = (await this.getLinkableGroups())
+			.filter(g => !known.has(g.groupID) && g.editable && g.filesEditable);
+		result.candidates = candidates.map(g => g.groupID);
+		if (!candidates.length) {
+			return result;
+		}
+		if (pending.length != 1 || candidates.length != 1) {
+			result.ambiguous = true;
+			ZML.Util.log(`${pending.length} libraries waiting, ${candidates.length} new groups: not linking by itself`);
+			return result;
+		}
+		let library = pending[0];
+		let groupID = candidates[0].groupID;
+		ZML.Util.log(`linking library ${library.libraryID} to its new group ${groupID}`);
+		await this.linkToGroup(library, groupID);
+		result.linked.push({ libraryID: library.libraryID, groupID });
+		return result;
+	},
+
+	_resolveTimer: null,
+	// Set by tests that call resolvePendingLinks() themselves
+	_autoResolveDisabled: false,
+
+	/**
+	 * Run resolvePendingLinks() shortly, once no sync is running: linking
+	 * rewrites the group's ID, which must not happen while sync works on it
+	 */
+	scheduleResolve(delay = 1000) {
+		if (this._autoResolveDisabled) {
+			return;
+		}
+		if (this._resolveTimer) {
+			clearTimeout(this._resolveTimer);
+		}
+		this._resolveTimer = setTimeout(() => {
+			this._resolveTimer = null;
+			if (this._autoResolveDisabled) {
+				return;
+			}
+			if (Zotero.Sync.Runner.syncInProgress) {
+				this.scheduleResolve(delay);
+				return;
+			}
+			this.resolvePendingLinks().catch(e => ZoteroMultipleLibraries.Util.error(e));
+		}, delay);
+	},
+
+	cancelScheduledResolve() {
+		if (this._resolveTimer) {
+			clearTimeout(this._resolveTimer);
+			this._resolveTimer = null;
+		}
 	},
 
 	/**
