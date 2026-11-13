@@ -29,7 +29,8 @@ Zotero 10 (developed and tested on 10.0.4 and 10.0.5).
 
 ## Everyday use
 
-- **New library**: File → New Library…, or right-click anywhere in the
+- **New library**: the library button just before New Collection above the
+  collection tree, File → New Library…, or right-click anywhere in the
   collection tree → New Library…
 - **Rename**: right-click the library → Rename Library…, or double-click it.
 - **Delete**: right-click the library → Delete Library… (asks for
@@ -47,36 +48,48 @@ libraries in the tree (default: on).
 
 ## Syncing
 
-Settings → ZoteroMultipleLibraries has three parts: the libraries, the syncing
-of the selected library, and its files.
+Settings → ZoteroMultipleLibraries shows the selected library with one
+checkbox, **Sync with my other computers**, a line saying where it stands,
+and a line saying where its files go. Everything rarely needed is under
+**More options**.
 
-![Settings for a library that is not synced yet](docs/screenshot-settings-local.png)
+![Settings for a library waiting for its group](docs/screenshot-settings-local.png)
 
-A new library is **not synced**: it exists only in this Zotero's data
-directory and does not count against your Zotero storage. There are two ways
-to get a synced extra library:
+A new library is **only on this computer**: it exists only in this Zotero's
+data directory and does not count against your Zotero storage. To sync it,
+tick **Sync with my other computers** and confirm. A Zotero account has
+exactly one personal library on zotero.org, so a library is synced as a
+private group of your account (only you are a member): **Make the Group on
+zotero.org…** opens the page; make a private group with any name and come
+back. Zotero downloads the new, empty group at its next sync (or **Check
+Now**, which also runs by itself when you come back from the browser), and the
+plugin links the library to it by itself. Zotero's own sync then uploads the
+library's content to that group and takes the group's name from zotero.org;
+the plugin keeps showing it at the top level of the tree.
 
-- **Enable syncing for a local library.** A Zotero account has exactly one
-  personal library on zotero.org, so an extra library is synced as a private
-  group of your account (only you are a member). The pane walks you through
-  it: 1. create a private group on zotero.org (button), 2. Sync Now, so that
-  the new, empty group appears on this computer, 3. choose it (or type its
-  numeric ID), then Enable Syncing. Zotero's own sync uploads the library's
-  content to that group and takes the group's name from zotero.org; the
-  plugin keeps showing it at the top level of the tree.
-- **Show a group library as an extra library.** Any group library on this
-  computer can be turned into an extra library (Libraries section, or
-  right-click it under "Group Libraries" → Show as Extra Library).
+The plugin links by itself only when there is no doubt: exactly one library
+waiting and exactly one new, empty group that you can edit. Empty groups
+that were already on this computer when you ticked the box are never taken.
+If more than one new group appears, the status line says so and More options
+→ **Use a group by number** lets you choose one (or type its number, the one
+in its web address). Unticking the box before the group arrives stops
+waiting.
+
+Your other computers show the library next to My Library by themselves once
+it has synced. Any group library can also be shown that way by hand: More
+options → **Use a library from another computer**, or right-click it under
+"Group Libraries" → Show Next to My Library.
 
 ![Settings for a synced library](docs/screenshot-settings.png)
 
-For a synced library, "Sync this library with my Zotero account" pauses or
-resumes its sync (Zotero's own "libraries to skip" setting), and "Show under
-Group Libraries…" turns it back into an ordinary group library.
+For a synced library, the same checkbox pauses or resumes its sync (Zotero's
+own "libraries to skip" setting), and More options → **Move to Group
+Libraries…** turns it back into an ordinary group library.
 
 ### Files
 
-Files of a synced library go to one of:
+Files of a synced library go to one of (More options, or **Change…** next to
+the files line):
 
 - **Zotero storage**, the default when My Library does not use WebDAV: files
   sync through Zotero storage whatever Zotero's Sync setting for group
@@ -86,9 +99,9 @@ Files of a synced library go to one of:
   default for a newly linked library when My Library syncs its files over
   WebDAV), in a
   folder of its own (`<My Library's URL>/ZoteroMultipleLibraries/<group ID>/`,
-  created when you verify; the plugin asks Zotero's own WebDAV code for the
+  created when the server is checked; the plugin asks Zotero's own WebDAV code for the
   password at sync time and never stores a copy), or *a different server*
-  with its own URL, username, and password. Verify Server checks the folder.
+  with its own URL, username, and password. Check Server checks the folder.
   Your Zotero account credentials and your existing WebDAV settings are never
   changed by the plugin;
 - **Don't sync files**.
