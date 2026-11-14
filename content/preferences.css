@@ -8,19 +8,21 @@
 	margin-inline-start: 24px;
 }
 
-#zml-prefs-root .zml-steps > hbox {
-	margin-block: 3px;
-}
-
-#zml-prefs-root .zml-step {
-	min-width: 20em;
-}
-
 #zml-prefs-root #zml-sync-status,
-#zml-prefs-root #zml-verify-status {
+#zml-prefs-root #zml-verify-status,
+#zml-prefs-root .zml-warning {
 	font-weight: 600;
 }
 
 #zml-prefs-root groupbox > label > h2 {
 	margin-bottom: 4px;
+}
+
+#zml-prefs-root .zml-more-section {
+	margin-block: 8px;
+}
+
+#zml-prefs-root .zml-more-section h3 {
+	margin-block: 4px;
+	font-size: inherit;
 }

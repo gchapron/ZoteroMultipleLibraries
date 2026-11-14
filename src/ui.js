@@ -32,6 +32,12 @@ ZoteroMultipleLibraries.UI = {
 				},
 				{
 					menuType: "menuitem",
+					l10nID: "zml-menu-new-library-from-file",
+					icon: libraryIcon,
+					onCommand: (event, _context) => this.newLibraryFromFile(event.target.ownerGlobal),
+				},
+				{
+					menuType: "menuitem",
 					l10nID: "zml-menu-library-settings",
 					onShowing: (_event, context) => context.setVisible(isManagedRow(context.collectionTreeRows)),
 					onCommand: (event, context) => this.openSettings(
@@ -86,6 +92,12 @@ ZoteroMultipleLibraries.UI = {
 					icon: libraryIcon,
 					onCommand: (event, _context) => this.newLibrary(event.target.ownerGlobal),
 				},
+				{
+					menuType: "menuitem",
+					l10nID: "zml-menu-new-library-from-file",
+					icon: libraryIcon,
+					onCommand: (event, _context) => this.newLibraryFromFile(event.target.ownerGlobal),
+				},
 			],
 		}));
 	},
@@ -97,6 +109,45 @@ ZoteroMultipleLibraries.UI = {
 			}
 		}
 		this._menuIDs = [];
+		for (let win of Zotero.getMainWindows()) {
+			this.removeToolbarButton(win);
+		}
+	},
+
+	TOOLBAR_BUTTON_ID: "zml-tb-library-add",
+
+	/**
+	 * "New Library…" just before Zotero's "New Collection…" in the toolbar
+	 * above the libraries and collections
+	 */
+	addToolbarButton(window) {
+		const ZML = ZoteroMultipleLibraries;
+		let doc = window.document;
+		let before = doc.getElementById("zotero-tb-collection-add");
+		if (!before || doc.getElementById(this.TOOLBAR_BUTTON_ID)) {
+			return;
+		}
+		let button = doc.createXULElement("toolbarbutton");
+		button.id = this.TOOLBAR_BUTTON_ID;
+		button.className = "zotero-tb-button";
+		button.setAttribute("tabindex", "-1");
+		// Set directly rather than by data-l10n-id: a window's Fluent strings can
+		// go stale when another plugin starts after this one
+		button.setAttribute("tooltiptext", this._getString("zml-tb-new-library"));
+		button.style.listStyleImage = ZML._chromeHandle
+			? 'url("chrome://zotero-multiple-libraries/content/add-library.svg")'
+			: `url("${ZML.rootURI}content/add-library.svg")`;
+		// Zotero colours its own toolbar icons by button ID; match them
+		button.style.fill = "currentColor";
+		button.addEventListener("command", () => this.newLibrary(window));
+		before.before(button);
+	},
+
+	removeToolbarButton(window) {
+		let button = window.document.getElementById(this.TOOLBAR_BUTTON_ID);
+		if (button) {
+			button.remove();
+		}
 	},
 
 	/**
@@ -106,6 +157,12 @@ ZoteroMultipleLibraries.UI = {
 		const ZML = ZoteroMultipleLibraries;
 		const Patches = ZML.Util.Patches;
 		let pane = window.ZoteroPane;
+		try {
+			this.addToolbarButton(window);
+		}
+		catch (e) {
+			ZML.Util.error(e);
+		}
 		if (!pane || Patches.isWrapped(pane, "buildCollectionContextMenu")) {
 			return;
 		}
@@ -183,6 +240,69 @@ ZoteroMultipleLibraries.UI = {
 		catch (e) {
 			ZML.Util.error(e);
 			Services.prompt.alert(window, this._getString("zml-new-library-title"), String(e));
+			return null;
+		}
+	},
+
+	_alert(window, title, message) {
+		Services.prompt.alert(window, title, message);
+	},
+
+	/**
+	 * Import a file into a new library of its own, so that an import never
+	 * lands in whichever library happened to be selected. The library is
+	 * only made for a file Zotero can read, and is named after the file
+	 * unless the user types another name.
+	 *
+	 * @param {Window} window
+	 * @param {String} [path] - The file to import; asked for if not given
+	 * @return {Promise<Zotero.Group|null>}
+	 */
+	async newLibraryFromFile(window, path) {
+		const ZML = ZoteroMultipleLibraries;
+		let title = this._getString("zml-new-library-from-file-title");
+		try {
+			if (!path) {
+				let { FilePicker } = window.ChromeUtils.importESModule("chrome://zotero/content/modules/filePicker.mjs");
+				let fp = new FilePicker();
+				fp.init(window, title, fp.modeOpen);
+				fp.appendFilters(fp.filterAll);
+				if (await fp.show() != fp.returnOK) {
+					return null;
+				}
+				path = fp.file;
+			}
+			let translation = new Zotero.Translate.Import();
+			translation.setLocation(Zotero.File.pathToFile(path));
+			if (!(await translation.getTranslators()).length) {
+				this._alert(window, title, this._getString("zml-new-library-from-file-unsupported"));
+				return null;
+			}
+			let fileName = window.PathUtils.filename(path);
+			let name = this._askName(
+				window,
+				"zml-new-library-from-file-title",
+				this._getString("zml-new-library-text"),
+				fileName.replace(/\.[^.]+$/, "") || fileName
+			);
+			if (name === null) {
+				return null;
+			}
+			let library = await ZML.Libraries.create(name);
+			await ZML.Tree.selectLibrary(window, library.libraryID);
+			// Zotero's own import, into the library now selected and without a
+			// collection wrapped around what the file holds
+			let ok = await window.Zotero_File_Interface.importFile({ file: path, addToLibraryRoot: true });
+			if (ok === false && !(await ZML.Libraries.hasContent(library.libraryID))) {
+				// Zotero has said why; don't leave an empty library behind
+				await ZML.Libraries.erase(library);
+				return null;
+			}
+			return library;
+		}
+		catch (e) {
+			ZML.Util.error(e);
+			this._alert(window, title, String(e));
 			return null;
 		}
 	},

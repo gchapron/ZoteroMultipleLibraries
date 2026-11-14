@@ -2,7 +2,7 @@
       xmlns:html="http://www.w3.org/1999/xhtml"
       id="zml-prefs-root">
 
-	<!-- Libraries: pick one, create one, or turn a group library into one -->
+	<!-- Libraries: pick one or create one -->
 	<groupbox>
 		<label><html:h2 data-l10n-id="zml-prefs-libraries-heading"/></label>
 		<hbox align="center">
@@ -16,37 +16,88 @@
 		</hbox>
 		<description id="zml-no-libraries" class="zml-hint" data-l10n-id="zml-prefs-no-libraries" hidden="true"/>
 		<description class="zml-hint" data-l10n-id="zml-prefs-new-explanation"/>
-		<vbox id="zml-adopt-box">
-			<hbox align="center">
-				<label data-l10n-id="zml-prefs-adopt-label" control="zml-adopt-select"/>
-				<menulist id="zml-adopt-select" native="true" style="flex: 1">
-					<menupopup/>
-				</menulist>
-				<button id="zml-adopt" data-l10n-id="zml-prefs-adopt-button"/>
-			</hbox>
-			<description class="zml-hint" data-l10n-id="zml-prefs-adopt-explanation"/>
-		</vbox>
 	</groupbox>
 
-	<!-- Syncing of the selected library -->
+	<!-- The selected library: one tick to sync, its state, where its files go -->
 	<groupbox id="zml-sync-box">
 		<label><html:h2 id="zml-sync-heading"/></label>
-		<description id="zml-sync-status"/>
+		<checkbox id="zml-sync-enabled" data-l10n-id="zml-prefs-sync-enabled" native="true"/>
+		<description id="zml-sync-status" class="zml-indent"/>
 
-		<vbox id="zml-link-box">
-			<description data-l10n-id="zml-prefs-link-explanation"/>
-			<vbox class="zml-steps">
+		<vbox id="zml-pending-box" class="zml-indent">
+			<description data-l10n-id="zml-prefs-pending-text"/>
+			<hbox align="center">
+				<button id="zml-open-groups" data-l10n-id="zml-prefs-open-groups-button"/>
+				<button id="zml-sync-now" data-l10n-id="zml-prefs-sync-now-button"/>
+				<description id="zml-sync-now-status" class="zml-hint" style="flex: 1"/>
+			</hbox>
+		</vbox>
+
+		<hbox id="zml-files-row" align="center" class="zml-indent">
+			<description id="zml-files-summary" style="flex: 1"/>
+			<button id="zml-files-change" data-l10n-id="zml-prefs-files-change-button"/>
+		</hbox>
+	</groupbox>
+
+	<!-- Everything rarely needed -->
+	<groupbox id="zml-more-group">
+		<hbox>
+			<button id="zml-more-toggle" class="zml-more-toggle"/>
+		</hbox>
+		<vbox id="zml-more-box" hidden="true">
+
+			<!-- Where the selected library's files go -->
+			<vbox id="zml-file-box" class="zml-more-section">
+				<label><html:h3 id="zml-file-heading"/></label>
+				<vbox id="zml-file-settings">
+					<description id="zml-file-deliberate-note" data-l10n-id="zml-prefs-file-deliberate"/>
+					<description id="zml-file-not-editable" class="zml-warning" data-l10n-id="zml-prefs-file-not-editable" hidden="true"/>
+					<radiogroup id="zml-file-mode" orient="vertical">
+						<radio value="zotero" data-l10n-id="zml-prefs-file-mode-zotero"/>
+						<radio value="webdav" data-l10n-id="zml-prefs-file-mode-webdav"/>
+						<radio value="none" data-l10n-id="zml-prefs-file-mode-none"/>
+					</radiogroup>
+					<description id="zml-zotero-note" class="zml-hint zml-indent"/>
+					<vbox id="zml-webdav-box" class="zml-indent">
+						<radiogroup id="zml-webdav-source" orient="vertical">
+							<radio id="zml-webdav-main" value="main" data-l10n-id="zml-prefs-webdav-main"/>
+							<radio value="custom" data-l10n-id="zml-prefs-webdav-custom"/>
+						</radiogroup>
+						<vbox id="zml-webdav-custom-box" class="zml-indent">
+							<hbox align="center">
+								<label data-l10n-id="zml-prefs-url-label" control="zml-url"/>
+								<menulist id="zml-scheme" native="true">
+									<menupopup>
+										<menuitem value="https" label="https://"/>
+										<menuitem value="http" label="http://"/>
+									</menupopup>
+								</menulist>
+								<html:input id="zml-url" type="text" style="flex: 1"/>
+							</hbox>
+							<hbox align="center">
+								<label data-l10n-id="zml-prefs-username-label" control="zml-username"/>
+								<html:input id="zml-username" type="text" style="flex: 1"/>
+							</hbox>
+							<hbox align="center">
+								<label data-l10n-id="zml-prefs-password-label" control="zml-password"/>
+								<html:input id="zml-password" type="password" style="flex: 1"/>
+							</hbox>
+						</vbox>
+						<description id="zml-webdav-folder" class="zml-hint"/>
+						<hbox id="zml-verify-row" align="center">
+							<button id="zml-verify" data-l10n-id="zml-prefs-verify-button"/>
+							<description id="zml-verify-status"/>
+						</hbox>
+					</vbox>
+					<description id="zml-shared-note" class="zml-hint" data-l10n-id="zml-prefs-shared-note"/>
+				</vbox>
+			</vbox>
+
+			<!-- Not synced yet: link to a group chosen by hand -->
+			<vbox id="zml-link-box" class="zml-more-section">
+				<label><html:h3 data-l10n-id="zml-prefs-link-heading"/></label>
+				<description class="zml-hint" data-l10n-id="zml-prefs-link-explanation"/>
 				<hbox align="center">
-					<label class="zml-step" data-l10n-id="zml-prefs-step1"/>
-					<button id="zml-open-groups" data-l10n-id="zml-prefs-open-groups-button"/>
-				</hbox>
-				<hbox align="center">
-					<label class="zml-step" data-l10n-id="zml-prefs-step2"/>
-					<button id="zml-sync-now" data-l10n-id="zml-prefs-sync-now-button"/>
-					<description id="zml-sync-now-status" class="zml-hint"/>
-				</hbox>
-				<hbox align="center">
-					<label class="zml-step" data-l10n-id="zml-prefs-step3" control="zml-group-select"/>
 					<vbox id="zml-group-select-box" style="flex: 1">
 						<menulist id="zml-group-select" native="true" style="flex: 1">
 							<menupopup/>
@@ -54,69 +105,31 @@
 					</vbox>
 					<description id="zml-no-group-yet" class="zml-hint" data-l10n-id="zml-prefs-no-group-yet" style="flex: 1"/>
 				</hbox>
-				<hbox align="center" class="zml-indent">
+				<hbox align="center">
 					<label class="zml-hint" data-l10n-id="zml-prefs-group-id-label" control="zml-group-id"/>
 					<html:input id="zml-group-id" type="text" style="width: 10em"/>
+					<button id="zml-link" data-l10n-id="zml-prefs-enable-sync-button"/>
 				</hbox>
 			</vbox>
-			<hbox align="center">
-				<button id="zml-link" data-l10n-id="zml-prefs-enable-sync-button"/>
-			</hbox>
-		</vbox>
 
-		<vbox id="zml-linked-box">
-			<checkbox id="zml-sync-enabled" data-l10n-id="zml-prefs-sync-enabled" native="true"/>
-			<hbox id="zml-release-box" align="center">
+			<!-- Synced: turn it back into an ordinary group library -->
+			<hbox id="zml-release-box" align="center" class="zml-more-section">
 				<button id="zml-release" data-l10n-id="zml-prefs-release-button"/>
 				<description class="zml-hint" data-l10n-id="zml-prefs-release-explanation" style="flex: 1"/>
 			</hbox>
-		</vbox>
-	</groupbox>
 
-	<!-- Files of the selected library -->
-	<groupbox id="zml-file-box">
-		<label><html:h2 id="zml-file-heading"/></label>
-		<description id="zml-file-unavailable" class="zml-hint" data-l10n-id="zml-prefs-file-sync-unavailable"/>
-		<vbox id="zml-file-settings">
-			<description id="zml-file-deliberate-note" data-l10n-id="zml-prefs-file-deliberate"/>
-			<radiogroup id="zml-file-mode" orient="vertical">
-				<radio value="zotero" data-l10n-id="zml-prefs-file-mode-zotero"/>
-				<radio value="webdav" data-l10n-id="zml-prefs-file-mode-webdav"/>
-				<radio value="none" data-l10n-id="zml-prefs-file-mode-none"/>
-			</radiogroup>
-			<description id="zml-zotero-note" class="zml-hint zml-indent"/>
-			<vbox id="zml-webdav-box" class="zml-indent">
-				<radiogroup id="zml-webdav-source" orient="vertical">
-					<radio id="zml-webdav-main" value="main" data-l10n-id="zml-prefs-webdav-main"/>
-					<radio value="custom" data-l10n-id="zml-prefs-webdav-custom"/>
-				</radiogroup>
-				<vbox id="zml-webdav-custom-box" class="zml-indent">
-					<hbox align="center">
-						<label data-l10n-id="zml-prefs-url-label" control="zml-url"/>
-						<menulist id="zml-scheme" native="true">
-							<menupopup>
-								<menuitem value="https" label="https://"/>
-								<menuitem value="http" label="http://"/>
-							</menupopup>
-						</menulist>
-						<html:input id="zml-url" type="text" style="flex: 1"/>
-					</hbox>
-					<hbox align="center">
-						<label data-l10n-id="zml-prefs-username-label" control="zml-username"/>
-						<html:input id="zml-username" type="text" style="flex: 1"/>
-					</hbox>
-					<hbox align="center">
-						<label data-l10n-id="zml-prefs-password-label" control="zml-password"/>
-						<html:input id="zml-password" type="password" style="flex: 1"/>
-					</hbox>
-				</vbox>
-				<description id="zml-webdav-folder" class="zml-hint"/>
+			<!-- A library set up on another computer -->
+			<vbox id="zml-adopt-box" class="zml-more-section">
+				<label><html:h3 data-l10n-id="zml-prefs-adopt-heading"/></label>
 				<hbox align="center">
-					<button id="zml-verify" data-l10n-id="zml-prefs-verify-button"/>
-					<description id="zml-verify-status"/>
+					<label data-l10n-id="zml-prefs-adopt-label" control="zml-adopt-select"/>
+					<menulist id="zml-adopt-select" native="true" style="flex: 1">
+						<menupopup/>
+					</menulist>
+					<button id="zml-adopt" data-l10n-id="zml-prefs-adopt-button"/>
 				</hbox>
+				<description class="zml-hint" data-l10n-id="zml-prefs-adopt-explanation"/>
 			</vbox>
-			<description id="zml-shared-note" class="zml-hint" data-l10n-id="zml-prefs-shared-note"/>
 		</vbox>
 	</groupbox>
 </vbox>

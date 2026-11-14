@@ -38,6 +38,18 @@ var ZoteroMultipleLibraries = {
 		for (let file of this._modules) {
 			Services.scriptloader.loadSubScript(rootURI + "src/" + file);
 		}
+		// chrome://zotero-multiple-libraries/content/: icons there follow the
+		// theme's colour (context-fill), which file:// and jar: icons do not
+		try {
+			this._chromeHandle = Components.classes["@mozilla.org/addons/addon-manager-startup;1"]
+				.getService(Components.interfaces.amIAddonManagerStartup)
+				.registerChrome(Services.io.newURI(rootURI + "manifest.json"), [
+					["content", "zotero-multiple-libraries", "content/"],
+				]);
+		}
+		catch (e) {
+			this.Util.error(e);
+		}
 		this.Util.log(`starting version ${version} (reason ${reason})`);
 
 		// Public handle (Run JavaScript, other plugins, tests)
@@ -58,6 +70,12 @@ var ZoteroMultipleLibraries = {
 		await this.Shared.purgeLegacy();
 		await this.Shared.scanAll();
 		this.Storage.scheduleQuietVerification();
+		// My Library's WebDAV settings may have changed while the plugin was off
+		await this.Storage.checkMainLocation().catch(e => this.Util.error(e));
+		// A library left waiting for its group when Zotero last quit
+		if (this.Libraries.getAll().some(l => this.Libraries.isLinkPending(l))) {
+			this.Libraries.scheduleResolve(5000);
+		}
 
 		this.prefPaneID = await Zotero.PreferencePanes.register({
 			pluginID: id,
@@ -104,6 +122,10 @@ var ZoteroMultipleLibraries = {
 			this.prefPaneID = null;
 		}
 		this.UI.uninit();
+		if (this._chromeHandle) {
+			this._chromeHandle.destruct();
+			this._chromeHandle = null;
+		}
 		this.Core.uninit();
 		this.Storage.uninit();
 		this.Util.Patches.unwrapAll();

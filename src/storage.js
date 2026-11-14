@@ -64,7 +64,51 @@ ZoteroMultipleLibraries.Storage = {
 			return original.call(this, libraryID);
 		});
 
+		// Extra libraries are the user's own: their files are fetched when My
+		// Library's are, not by the setting for group libraries (whose menu
+		// Zotero disables when group file syncing is off)
+		Patches.wrap(Local, "_getDownloadPrefFromLibrary", original => function (libraryID) {
+			if (ZML.Libraries.isManagedLibrary(libraryID)) {
+				return "sync.storage.downloadMode.personal";
+			}
+			return original.call(this, libraryID);
+		});
+
+		// When a group's "file editing" is turned off on zotero.org, Zotero
+		// offers to delete the local files still waiting for upload. Files
+		// kept on WebDAV (or not synced at all) are not zotero.org's to
+		// manage: never make that offer for them.
+		if (Zotero.Sync && Zotero.Sync.Data && Zotero.Sync.Data.Local) {
+			Patches.wrap(Zotero.Sync.Data.Local, "checkLibraryForAccess", original => function (win, libraryID, editable, filesEditable) {
+				let mode = ZML.Storage.getFileSyncMode(libraryID);
+				if (mode !== null && mode != "zotero") {
+					filesEditable = true;
+				}
+				return original.call(this, win, libraryID, editable, filesEditable);
+			});
+		}
+
+		// My Library's WebDAV server, folder or username changed
+		this._prefObservers = [];
+		for (let pref of ["sync.storage.scheme", "sync.storage.url", "sync.storage.username"]) {
+			this._prefObservers.push(Zotero.Prefs.registerObserver(pref, () => this.scheduleMainLocationCheck()));
+		}
+
 		if (Zotero.Sync && Zotero.Sync.Runner) {
+			// Zotero drops its own WebDAV controller whenever My Library's WebDAV
+			// settings change, the password included; controllers of libraries
+			// sharing that server hold the old address and credentials
+			Patches.wrap(Zotero.Sync.Runner, "resetStorageController", original => function (mode) {
+				if (mode == "webdav") {
+					for (let libraryID of [...ZML.Storage._controllers.keys()]) {
+						if (ZML.Settings.get(libraryID).fileSync.useMain) {
+							ZML.Storage.resetController(libraryID);
+						}
+					}
+				}
+				return original.call(this, mode);
+			});
+
 			// Called from the runner's file-sync loop with options.libraryID set
 			Patches.wrap(Zotero.Sync.Runner, "getStorageController", original => function (mode, options) {
 				let libraryID = options && options.libraryID;
@@ -77,8 +121,90 @@ ZoteroMultipleLibraries.Storage = {
 	},
 
 	uninit() {
+		for (let id of this._prefObservers || []) {
+			Zotero.Prefs.unregisterObserver(id);
+		}
+		this._prefObservers = [];
+		if (this._mainLocationTimer) {
+			clearTimeout(this._mainLocationTimer);
+			this._mainLocationTimer = null;
+		}
 		this._classes.clear();
 		this._controllers.clear();
+	},
+
+	_prefObservers: [],
+	_mainLocationTimer: null,
+
+	/**
+	 * Where My Library's WebDAV files are, as far as libraries sharing that
+	 * server are concerned (their folders sit next to My Library's)
+	 */
+	mainLocation() {
+		return [
+			Zotero.Prefs.get("sync.storage.scheme") || "",
+			Zotero.Prefs.get("sync.storage.username") || "",
+			(Zotero.Prefs.get("sync.storage.url") || "").trim()
+				.replace(/(^https?:\/\/|^:?\/\/|\/zotero\/?$|\/$)/g, ""),
+		].join("|");
+	},
+
+	scheduleMainLocationCheck(delay = 1000) {
+		if (this._mainLocationTimer) {
+			clearTimeout(this._mainLocationTimer);
+		}
+		// Zotero's Sync pane tidies the URL just after it changes: wait for that
+		this._mainLocationTimer = setTimeout(() => {
+			this._mainLocationTimer = null;
+			this.checkMainLocation().catch(e => ZoteroMultipleLibraries.Util.error(e));
+		}, delay);
+	},
+
+	/**
+	 * After My Library's WebDAV server, folder or username changed, libraries
+	 * sharing that server have to be checked again (which makes their folders
+	 * in the new place) and their files uploaded there, as Zotero does for My
+	 * Library itself. Without this they would keep writing to the old place
+	 * until restart and then fail, with the files already synced never
+	 * uploaded to the new one.
+	 */
+	async checkMainLocation() {
+		const ZML = ZoteroMultipleLibraries;
+		let current = this.mainLocation();
+		let moved = [];
+		for (let library of ZML.Libraries.getAll()) {
+			let libraryID = library.libraryID;
+			let fs = ZML.Settings.get(libraryID).fileSync;
+			if (fs.mode != "webdav" || !fs.useMain) {
+				continue;
+			}
+			if (!fs.mainLocation) {
+				// Checked before this was recorded: take the current place as that
+				if (fs.verified) {
+					await ZML.Settings.update(libraryID, (c) => {
+						c.fileSync.mainLocation = current;
+					});
+				}
+				continue;
+			}
+			if (fs.mainLocation == current) {
+				continue;
+			}
+			ZML.Util.log(`My Library's WebDAV location changed: library ${libraryID} will be checked and uploaded again`);
+			this.resetController(libraryID);
+			try {
+				await Zotero.Sync.Storage.Local.resetAllSyncStates(libraryID);
+			}
+			catch (e) {
+				ZML.Util.error(e);
+			}
+			await ZML.Settings.update(libraryID, (c) => {
+				c.fileSync.verified = false;
+				c.fileSync.mainLocation = "";
+			});
+			moved.push(libraryID);
+		}
+		return moved;
 	},
 
 	/**
@@ -176,6 +302,26 @@ ZoteroMultipleLibraries.Storage = {
 			&& !!Zotero.Prefs.get("sync.storage.username");
 	},
 
+	/**
+	 * A library's file syncing as it is or, for a library that does not sync
+	 * yet and whose owner has not chosen, as it will be once it does: My
+	 * Library's WebDAV server if it has one (in a folder of its own), else
+	 * Zotero storage
+	 *
+	 * @return {Object} - A copy of the library's fileSync settings
+	 */
+	getPlannedFileSync(libraryID) {
+		const ZML = ZoteroMultipleLibraries;
+		let fs = Object.assign({}, ZML.Settings.get(libraryID).fileSync);
+		if (!fs.chosen && ZML.Libraries.isLocalLibrary(libraryID)
+				&& fs.mode == "zotero" && !fs.useMain && !fs.url && this.mainWebDAVAvailable()) {
+			fs.mode = "webdav";
+			fs.useMain = true;
+			fs.verified = false;
+		}
+		return fs;
+	},
+
 	_mainParentURL(libraryID) {
 		let url = (Zotero.Prefs.get("sync.storage.url") || "").trim().replace(/\/+$/, "");
 		let library = Zotero.Libraries.get(libraryID);
@@ -258,7 +404,12 @@ ZoteroMultipleLibraries.Storage = {
 			origin: this.LOGIN_HOST,
 			httpRealm: this.loginRealm(libraryID),
 		});
-		return logins.length ? logins[0].password : "";
+		// Library IDs are reused when the data directory is replaced: a login
+		// left by another library that had this ID must not be sent to this
+		// library's server
+		let username = ZoteroMultipleLibraries.Settings.get(libraryID).fileSync.username || "";
+		let login = logins.find(l => !l.username || !username || l.username == username);
+		return login ? login.password : "";
 	},
 
 	async setPassword(libraryID, username, password) {
@@ -320,6 +471,9 @@ ZoteroMultipleLibraries.Storage = {
 				set(val) {
 					ZML.Settings.updateSync(this.libraryID, (c) => {
 						c.fileSync.verified = !!val;
+						if (val && c.fileSync.useMain) {
+							c.fileSync.mainLocation = ZML.Storage.mainLocation();
+						}
 					});
 				},
 			},
@@ -398,6 +552,17 @@ ZoteroMultipleLibraries.Storage = {
 			}
 			this._rootURI = Services.io.newURI(spec + "zotero/");
 			Zotero.HTTP.CookieBlocker.addURL(this._rootURI.spec);
+		};
+
+		// Zotero's purge of "orphaned" server files assumes the folder belongs to
+		// My Library: it looks every file up in My Library, finds none of this
+		// library's items there, and deletes files more than a week older than
+		// My Library's last sync, i.e. this library's own files, while they
+		// still count as synced here. Never run it for an extra library. Files
+		// of deleted items are still removed (Zotero's purgeDeletedStorageFiles
+		// is per library); only leftovers of interrupted uploads stay behind.
+		LibraryWebDAV.prototype.purgeOrphanedStorageFiles = async function () {
+			return false;
 		};
 
 		// When reusing My Library's server, the library's folders are ours to

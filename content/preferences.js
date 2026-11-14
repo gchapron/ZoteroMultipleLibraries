@@ -20,6 +20,10 @@ window.ZoteroMultipleLibrariesPrefs = {
 	_libraryID: null,
 	_initialized: false,
 	_notifierID: null,
+	_moreOpen: false,
+	_filesState: "synced",
+	_awaitingReturn: false,
+	_onLinked: null,
 
 	$(id) {
 		return document.getElementById(id);
@@ -50,7 +54,20 @@ window.ZoteroMultipleLibrariesPrefs = {
 
 		// Syncing
 		this.$("zml-open-groups").addEventListener("command", () => {
+			// Check by itself once the user is back from the browser
+			this._awaitingReturn = true;
 			Zotero.launchURL("https://www.zotero.org/groups/new");
+		});
+		window.addEventListener("focus", () => {
+			if (this._awaitingReturn && this.library && this.ZML.Libraries.isLinkPending(this.library)) {
+				this._awaitingReturn = false;
+				this.syncNow();
+			}
+		});
+		this.$("zml-more-toggle").addEventListener("command", () => this.setMoreOpen(!this._moreOpen));
+		this.$("zml-files-change").addEventListener("command", () => {
+			this.setMoreOpen(true);
+			this.$("zml-file-box").scrollIntoView({ block: "start", behavior: "smooth" });
 		});
 		this.$("zml-sync-now").addEventListener("command", () => this.syncNow());
 		this.$("zml-group-select").addEventListener("command", () => {
@@ -96,11 +113,21 @@ window.ZoteroMultipleLibrariesPrefs = {
 				}
 			},
 		}, ["group", "setting"], "zotero-multiple-libraries-prefs");
+		// A waiting library linked by itself in the background
+		this._onLinked = (library) => {
+			if (!window.closed && library.libraryID == this._libraryID) {
+				this.refreshList();
+			}
+		};
+		this.ZML.Libraries.addLinkListener(this._onLinked);
 		window.addEventListener("unload", () => {
 			if (this._notifierID) {
 				Zotero.Notifier.unregisterObserver(this._notifierID);
 			}
+			this.ZML.Libraries.removeLinkListener(this._onLinked);
 		}, { once: true });
+
+		this.setMoreOpen(false);
 
 		// "Library Settings…" while the pane is already open
 		let container = this.$("zml-prefs-root").parentElement;
@@ -214,35 +241,103 @@ window.ZoteroMultipleLibrariesPrefs = {
 		for (let id of ["zml-rename", "zml-delete"]) {
 			this.$(id).disabled = !hasLibrary;
 		}
-		this.$("zml-sync-box").hidden = !hasLibrary;
-		this.$("zml-file-box").hidden = !hasLibrary;
+		for (let id of ["zml-sync-box", "zml-file-box", "zml-link-box", "zml-release-box"]) {
+			this.$(id).hidden = !hasLibrary;
+		}
 		if (!hasLibrary) {
 			return;
 		}
 
 		let linked = ZML.Libraries.isLinkedLibrary(library);
+		let pending = ZML.Libraries.isLinkPending(library);
 		this.$("zml-sync-heading").textContent = this.getString("zml-prefs-sync-heading", { name: library.name });
 		this.$("zml-file-heading").textContent = this.getString("zml-prefs-file-heading", { name: library.name });
 
-		// Syncing
-		this.$("zml-sync-status").textContent = linked
-			? this.getString("zml-prefs-status-linked", { groupID: String(library.groupID) })
-			: this.getString("zml-prefs-status-local");
-		this.$("zml-link-box").hidden = linked;
-		this.$("zml-linked-box").hidden = !linked;
+		// One tick: sync (or wait for the group to sync with), or pause
+		let enabled = linked && ZML.Libraries.isSyncEnabled(library);
+		this.$("zml-sync-enabled").checked = linked ? enabled : pending;
+		let status;
 		if (linked) {
-			this.$("zml-sync-enabled").checked = ZML.Libraries.isSyncEnabled(library);
+			let id = enabled ? "zml-prefs-status-linked" : "zml-prefs-status-paused";
+			if (ZML.Settings.get(library.libraryID).groupMissing) {
+				id = "zml-prefs-status-group-missing";
+			}
+			status = this.getString(id, { groupID: String(library.groupID) });
+		}
+		else if (pending) {
+			let state = await ZML.Libraries.getPendingState(library);
+			status = this.getString({
+				choose: "zml-prefs-status-ambiguous",
+				existing: "zml-prefs-status-existing",
+			}[state] || "zml-prefs-status-pending");
+			if (state == "choose" || state == "existing") {
+				// The group is picked by hand there
+				this.setMoreOpen(true);
+			}
 		}
 		else {
+			status = this.getString("zml-prefs-status-local");
+		}
+		this.$("zml-sync-status").textContent = status;
+		this.$("zml-pending-box").hidden = !pending;
+		this.$("zml-link-box").hidden = linked;
+		this.$("zml-release-box").hidden = !linked;
+		if (!linked) {
 			await this.refreshLinkableGroups();
 		}
 
-		// Files
-		this.$("zml-file-unavailable").hidden = linked;
-		this.$("zml-file-settings").hidden = !linked;
-		if (linked) {
-			await this.renderFileSettings();
+		// Files: where they go, or will go once the library syncs
+		this._filesState = linked ? "synced" : (pending ? "pending" : "local");
+		await this.renderFileSettings();
+	},
+
+	/**
+	 * Before the user's first change, write down what was only planned (see
+	 * Storage.getPlannedFileSync()), so that the change starts from what the
+	 * pane shows and counts as their choice from then on
+	 */
+	async _keepPlan() {
+		const ZML = this.ZML;
+		let libraryID = this._libraryID;
+		if (ZML.Settings.get(libraryID).fileSync.chosen) {
+			return;
 		}
+		let planned = ZML.Storage.getPlannedFileSync(libraryID);
+		await ZML.Settings.update(libraryID, (c) => {
+			c.fileSync.mode = planned.mode;
+			c.fileSync.useMain = planned.useMain;
+			c.fileSync.chosen = true;
+		});
+	},
+
+	setMoreOpen(open) {
+		this._moreOpen = !!open;
+		this.$("zml-more-box").hidden = !this._moreOpen;
+		this.$("zml-more-toggle").setAttribute("label",
+			this.getString(this._moreOpen ? "zml-prefs-more-open" : "zml-prefs-more-closed"));
+	},
+
+	/**
+	 * One line saying where the selected library's files go
+	 */
+	renderFilesSummary() {
+		const ZML = this.ZML;
+		let config = ZML.Storage.getPlannedFileSync(this._libraryID);
+		let id;
+		switch (config.mode) {
+			case "webdav":
+				id = config.useMain ? "zml-prefs-files-main" : "zml-prefs-files-custom";
+				break;
+			case "zotero":
+				id = "zml-prefs-files-zotero";
+				break;
+			case "none":
+				id = "zml-prefs-files-none";
+				break;
+			default:
+				id = "zml-prefs-files-unset";
+		}
+		this.$("zml-files-summary").textContent = this.getString(id, { state: this._filesState || "synced" });
 	},
 
 	/**
@@ -272,10 +367,24 @@ window.ZoteroMultipleLibrariesPrefs = {
 	async renderFileSettings() {
 		const ZML = this.ZML;
 		let libraryID = this._libraryID;
-		let config = ZML.Settings.get(libraryID).fileSync;
+		let config = ZML.Storage.getPlannedFileSync(libraryID);
+		let local = ZML.Libraries.isLocalLibrary(libraryID);
 		let unset = config.mode == "unset";
 		let mode = ZML.Storage.MODES.includes(config.mode) ? config.mode : (unset ? "" : "zotero");
+		this.renderFilesSummary();
 		this.$("zml-file-deliberate-note").hidden = !unset;
+		// zotero.org's "file editing" switch for the group also stops uploads
+		// to WebDAV (Zotero skips them); say so rather than fail silently
+		let library = Zotero.Libraries.get(libraryID);
+		this.$("zml-file-not-editable").hidden = !(!local && mode == "webdav" && library && !library.filesEditable);
+		if (!this.$("zml-file-not-editable").hidden) {
+			// Something is wrong with this library's files: don't keep it folded away
+			this.setMoreOpen(true);
+		}
+		if (unset) {
+			// A choice is needed: show where it is made
+			this.setMoreOpen(true);
+		}
 		let radiogroup = this.$("zml-file-mode");
 		if (mode) {
 			radiogroup.value = mode;
@@ -301,6 +410,9 @@ window.ZoteroMultipleLibrariesPrefs = {
 			this.$("zml-webdav-main").disabled = !mainAvailable;
 			this.$("zml-webdav-source").value = useMain ? "main" : "custom";
 			this.$("zml-webdav-custom-box").hidden = useMain;
+			// My Library's server is left alone until the library has its group:
+			// its folder there is named after the group
+			this.$("zml-verify-row").hidden = local && useMain;
 			this.$("zml-scheme").value = config.scheme || "https";
 			this.$("zml-url").value = config.url || "";
 			this.$("zml-username").value = config.username || "";
@@ -314,6 +426,8 @@ window.ZoteroMultipleLibrariesPrefs = {
 				this.updateVerifyStatus();
 			}
 		}
+		// Kept with the library on zotero.org: only once it is there
+		this.$("zml-shared-note").hidden = local;
 	},
 
 	/**
@@ -321,10 +435,13 @@ window.ZoteroMultipleLibrariesPrefs = {
 	 */
 	updateWebDAVFolder() {
 		const ZML = this.ZML;
-		let config = ZML.Settings.get(this._libraryID).fileSync;
+		let config = ZML.Storage.getPlannedFileSync(this._libraryID);
 		let text;
 		if (config.useMain && !ZML.Storage.mainWebDAVAvailable()) {
 			text = this.getString("zml-prefs-webdav-main-unavailable");
+		}
+		else if (config.useMain && ZML.Libraries.isLocalLibrary(this._libraryID)) {
+			text = this.getString("zml-prefs-webdav-main-later");
 		}
 		else {
 			let url = ZML.Storage.getDisplayRootURL(this._libraryID);
@@ -351,9 +468,15 @@ window.ZoteroMultipleLibrariesPrefs = {
 		let status = this.$("zml-sync-now-status");
 		button.disabled = true;
 		status.textContent = this.getString("zml-prefs-sync-now-running");
+		let text = "";
 		try {
 			// Same as the toolbar button; errors (e.g., no account) are shown by Zotero
 			await Zotero.Sync.Runner.sync();
+			await this.ZML.Libraries.resolvePendingLinks();
+			let state = this.library && await this.ZML.Libraries.getPendingState(this.library);
+			if (state == "waiting") {
+				text = this.getString("zml-prefs-check-not-yet");
+			}
 		}
 		catch (e) {
 			this.ZML.Util.error(e);
@@ -362,8 +485,7 @@ window.ZoteroMultipleLibrariesPrefs = {
 			button.disabled = false;
 		}
 		await this.refreshList();
-		let count = (await this.ZML.Libraries.getLinkableGroups()).length;
-		status.textContent = this.getString("zml-prefs-sync-now-done", { count });
+		status.textContent = text;
 	},
 
 	async linkLibrary() {
@@ -387,9 +509,50 @@ window.ZoteroMultipleLibrariesPrefs = {
 		}
 	},
 
-	toggleSync() {
-		if (this.library && this.ZML.Libraries.isLinkedLibrary(this.library)) {
-			this.ZML.Libraries.setSyncEnabled(this.library, this.$("zml-sync-enabled").checked);
+	/**
+	 * The one tick. Synced library: pause or resume. Local library: after one
+	 * confirmation, wait for the group the user makes on zotero.org (linked by
+	 * itself when it arrives); unticking stops waiting.
+	 */
+	async toggleSync() {
+		const ZML = this.ZML;
+		let library = this.library;
+		if (!library) {
+			return;
+		}
+		let checked = this.$("zml-sync-enabled").checked;
+		try {
+			await this._toggleSync(library, checked);
+		}
+		catch (e) {
+			ZML.Util.error(e);
+			Services.prompt.alert(window, this.getString("zml-sync-confirm-title"), String(e));
+		}
+		await this.render();
+	},
+
+	async _toggleSync(library, checked) {
+		const ZML = this.ZML;
+		if (ZML.Libraries.isLinkedLibrary(library)) {
+			ZML.Libraries.setSyncEnabled(library, checked);
+		}
+		else if (!checked) {
+			await ZML.Libraries.cancelLink(library);
+		}
+		else if (!ZML.Libraries.isLinkPending(library)) {
+			let index = Zotero.Prompt.confirm({
+				window,
+				title: this.getString("zml-sync-confirm-title"),
+				text: this.getString("zml-sync-confirm-text", { name: library.name }),
+				button0: this.getString("zml-sync-confirm-button"),
+				button1: Services.prompt.BUTTON_TITLE_CANCEL,
+				// Uploading can't be undone: Enter must not do it
+				defaultButton: 1,
+			});
+			if (index !== 0) {
+				return;
+			}
+			await ZML.Libraries.requestLink(library);
 		}
 	},
 
@@ -408,8 +571,10 @@ window.ZoteroMultipleLibrariesPrefs = {
 			return;
 		}
 		let mode = this.$("zml-file-mode").value;
+		await this._keepPlan();
 		let previous = this.ZML.Settings.get(this._libraryID).fileSync.mode;
 		if (mode == previous) {
+			await this.renderFileSettings();
 			return;
 		}
 		await this.ZML.Settings.update(this._libraryID, (c) => {
@@ -429,7 +594,8 @@ window.ZoteroMultipleLibrariesPrefs = {
 		await this.ZML.Shared.publish(this._libraryID);
 		await this.renderFileSettings();
 		if (mode == "webdav" && this.ZML.Settings.get(this._libraryID).fileSync.useMain
-				&& this.ZML.Storage.mainWebDAVAvailable()) {
+				&& this.ZML.Storage.mainWebDAVAvailable()
+				&& !this.ZML.Libraries.isLocalLibrary(this._libraryID)) {
 			await this.verifyServer({ silent: true });
 		}
 	},
@@ -445,8 +611,10 @@ window.ZoteroMultipleLibrariesPrefs = {
 			this.$("zml-webdav-source").value = "custom";
 			return;
 		}
+		await this._keepPlan();
 		let previous = !!this.ZML.Settings.get(this._libraryID).fileSync.useMain;
 		if (useMain == previous) {
+			await this.renderFileSettings();
 			return;
 		}
 		await this.ZML.Settings.update(this._libraryID, (c) => {
@@ -456,7 +624,7 @@ window.ZoteroMultipleLibrariesPrefs = {
 		this.ZML.Storage.resetController(this._libraryID);
 		await this.ZML.Shared.publish(this._libraryID);
 		await this.renderFileSettings();
-		if (useMain) {
+		if (useMain && !this.ZML.Libraries.isLocalLibrary(this._libraryID)) {
 			// Creates the library's folder on My Library's server and checks it
 			await this.verifyServer({ silent: true });
 		}
@@ -519,6 +687,7 @@ window.ZoteroMultipleLibrariesPrefs = {
 		if (!this._checkURL(url)) {
 			return false;
 		}
+		await this._keepPlan();
 		let config = ZML.Settings.get(libraryID).fileSync;
 		let oldPassword = await ZML.Storage.getPassword(libraryID);
 		let changed = config.scheme != scheme || config.url != url
@@ -547,7 +716,10 @@ window.ZoteroMultipleLibrariesPrefs = {
 		}
 		const ZML = this.ZML;
 		let libraryID = this._libraryID;
-		let useMain = !!ZML.Settings.get(libraryID).fileSync.useMain;
+		let useMain = !!ZML.Storage.getPlannedFileSync(libraryID).useMain;
+		if (useMain && ZML.Libraries.isLocalLibrary(libraryID)) {
+			return false;
+		}
 		if (!useMain && !(await this.saveWebDAVFields())) {
 			return false;
 		}
