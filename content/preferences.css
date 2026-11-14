@@ -17,7 +17,8 @@
 }
 
 #zml-prefs-root #zml-sync-status,
-#zml-prefs-root #zml-verify-status {
+#zml-prefs-root #zml-verify-status,
+#zml-prefs-root .zml-warning {
 	font-weight: 600;
 }
 

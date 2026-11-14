@@ -58,6 +58,8 @@ var ZoteroMultipleLibraries = {
 		await this.Shared.purgeLegacy();
 		await this.Shared.scanAll();
 		this.Storage.scheduleQuietVerification();
+		// My Library's WebDAV settings may have changed while the plugin was off
+		await this.Storage.checkMainLocation().catch(e => this.Util.error(e));
 
 		this.prefPaneID = await Zotero.PreferencePanes.register({
 			pluginID: id,
