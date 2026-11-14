@@ -39,8 +39,7 @@ zml-delete-library-button = Delete Library
 zml-error-name-empty = The library name cannot be empty.
 zml-error-name-exists = A library named “{ $name }” already exists.
 
-zml-tb-new-library =
-    .tooltiptext = New Library…
+zml-tb-new-library = New Library…
 zml-menu-library-settings =
     .label = Library Settings…
 
@@ -76,6 +75,9 @@ zml-prefs-status-pending = Waiting for the new group…
 zml-prefs-status-ambiguous = Zotero isn’t sure which group to use: choose it under More options.
 zml-prefs-status-existing = Waiting for the new group… If you made it before ticking, choose it under More options.
 zml-prefs-status-linked = ✓ Synced with your Zotero account (group { $groupID }).
+zml-prefs-status-group-missing = Not syncing: zotero.org no longer lists group { $groupID } for your account (it was deleted, or you are no longer a member). The library and its files are still on this computer.
+zml-group-missing-headline = Library No Longer Syncing
+zml-group-missing-text = “{ $name }” is no longer syncing: its group was not found on zotero.org. Nothing on this computer was removed.
 zml-prefs-status-paused = Paused: not syncing for now (group { $groupID }). Tick to resume.
 zml-prefs-pending-text = Zotero keeps each synced library in a private group of your Zotero account. Make one on zotero.org (any name, “Private”), then come back: Zotero finds it and connects it by itself.
 zml-prefs-open-groups-button =
@@ -133,6 +135,7 @@ zml-prefs-adopt-button =
 zml-prefs-adopt-explanation = A library made on another computer usually appears here by itself. If it shows under Group Libraries instead, choose it here.
 
 zml-prefs-file-heading = Where files of “{ $name }” go
+zml-prefs-file-not-editable = Files are not being uploaded: file editing is turned off for this group on zotero.org. Turn it on in the group’s Library Settings there. Nothing on this computer is removed.
 zml-prefs-file-deliberate = No choice yet for this library on this computer, and none came from your other computers. Choose below; your other computers will use the same.
 zml-prefs-shared-note = This choice (including a WebDAV server’s address and username, never its password) is kept with the library on zotero.org, so your other computers use the same.
 zml-prefs-password-required = Password needed on this computer: the settings came from another computer, and passwords are never shared.

@@ -54,9 +54,49 @@ ZoteroMultipleLibraries.Core = {
 						return [];
 					}
 				}
-				let result = await ZML.Core.withManagedGroupsHidden(
-					() => original.call(this, client, options, keyInfo, libraries)
-				);
+				// With managed groups hidden, Zotero cannot report a linked library
+				// whose group is gone from zotero.org (deleted, or the user removed
+				// from it): it would just stop syncing. Note the groups zotero.org
+				// lists, from the request Zotero makes anyway.
+				let remoteGroupVersions = null;
+				let restore = null;
+				if (client && typeof client.getGroupVersions == "function") {
+					let own = Object.prototype.hasOwnProperty.call(client, "getGroupVersions");
+					let originalGet = client.getGroupVersions;
+					client.getGroupVersions = async function (...args) {
+						remoteGroupVersions = await originalGet.apply(this, args);
+						return remoteGroupVersions;
+					};
+					restore = () => {
+						if (own) {
+							client.getGroupVersions = originalGet;
+						}
+						else {
+							delete client.getGroupVersions;
+						}
+					};
+				}
+				let result;
+				try {
+					result = await ZML.Core.withManagedGroupsHidden(
+						() => original.call(this, client, options, keyInfo, libraries)
+					);
+				}
+				finally {
+					if (restore) {
+						restore();
+					}
+				}
+				if (remoteGroupVersions) {
+					try {
+						await ZML.Libraries.noteMissingGroups(
+							Object.keys(remoteGroupVersions).map(id => parseInt(id))
+						);
+					}
+					catch (e) {
+						ZML.Util.error(e);
+					}
+				}
 				return result.filter(id => !ZML.Libraries.isLocalLibrary(id));
 			});
 		}

@@ -70,6 +70,8 @@ var ZoteroMultipleLibraries = {
 		await this.Shared.purgeLegacy();
 		await this.Shared.scanAll();
 		this.Storage.scheduleQuietVerification();
+		// My Library's WebDAV settings may have changed while the plugin was off
+		await this.Storage.checkMainLocation().catch(e => this.Util.error(e));
 		// A library left waiting for its group when Zotero last quit
 		if (this.Libraries.getAll().some(l => this.Libraries.isLinkPending(l))) {
 			this.Libraries.scheduleResolve(5000);

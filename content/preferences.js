@@ -258,8 +258,11 @@ window.ZoteroMultipleLibrariesPrefs = {
 		this.$("zml-sync-enabled").checked = linked ? enabled : pending;
 		let status;
 		if (linked) {
-			status = this.getString(enabled ? "zml-prefs-status-linked" : "zml-prefs-status-paused",
-				{ groupID: String(library.groupID) });
+			let id = enabled ? "zml-prefs-status-linked" : "zml-prefs-status-paused";
+			if (ZML.Settings.get(library.libraryID).groupMissing) {
+				id = "zml-prefs-status-group-missing";
+			}
+			status = this.getString(id, { groupID: String(library.groupID) });
 		}
 		else if (pending) {
 			let state = await ZML.Libraries.getPendingState(library);
@@ -370,6 +373,14 @@ window.ZoteroMultipleLibrariesPrefs = {
 		let mode = ZML.Storage.MODES.includes(config.mode) ? config.mode : (unset ? "" : "zotero");
 		this.renderFilesSummary();
 		this.$("zml-file-deliberate-note").hidden = !unset;
+		// zotero.org's "file editing" switch for the group also stops uploads
+		// to WebDAV (Zotero skips them); say so rather than fail silently
+		let library = Zotero.Libraries.get(libraryID);
+		this.$("zml-file-not-editable").hidden = !(!local && mode == "webdav" && library && !library.filesEditable);
+		if (!this.$("zml-file-not-editable").hidden) {
+			// Something is wrong with this library's files: don't keep it folded away
+			this.setMoreOpen(true);
+		}
 		if (unset) {
 			// A choice is needed: show where it is made
 			this.setMoreOpen(true);

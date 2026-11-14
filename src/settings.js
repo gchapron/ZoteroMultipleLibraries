@@ -25,6 +25,11 @@ ZoteroMultipleLibraries.Settings = {
 			// While a local library waits for its new zotero.org group:
 			// { since: <ms>, knownGroupIDs: [<empty groups already here>] }
 			pendingLink: null,
+			// True while zotero.org does not list this library's group for the
+			// account (group deleted, or the user removed from it): it is then
+			// not syncing, which Zotero's own check cannot report for a group
+			// the plugin manages
+			groupMissing: false,
 			fileSync: {
 				// zotero: Zotero's normal behaviour for group libraries (Zotero storage,
 				//   following the Sync preference for group files) — the default
@@ -42,6 +47,10 @@ ZoteroMultipleLibraries.Settings = {
 				url: "",
 				username: "",
 				verified: false,
+				// With useMain: where My Library's WebDAV files were when this
+				// library's folder there was last checked (see
+				// Storage.checkMainLocation())
+				mainLocation: "",
 			},
 		};
 	},

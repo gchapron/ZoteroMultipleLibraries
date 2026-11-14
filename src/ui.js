@@ -131,7 +131,9 @@ ZoteroMultipleLibraries.UI = {
 		button.id = this.TOOLBAR_BUTTON_ID;
 		button.className = "zotero-tb-button";
 		button.setAttribute("tabindex", "-1");
-		button.setAttribute("data-l10n-id", "zml-tb-new-library");
+		// Set directly rather than by data-l10n-id: a window's Fluent strings can
+		// go stale when another plugin starts after this one
+		button.setAttribute("tooltiptext", this._getString("zml-tb-new-library"));
 		button.style.listStyleImage = ZML._chromeHandle
 			? 'url("chrome://zotero-multiple-libraries/content/add-library.svg")'
 			: `url("${ZML.rootURI}content/add-library.svg")`;

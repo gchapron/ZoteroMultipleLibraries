@@ -72,6 +72,48 @@ ZoteroMultipleLibraries.Libraries = {
 		return this.isLocalLibrary(libraryOrID) || this.isLinkedLibrary(libraryOrID);
 	},
 
+	/**
+	 * Record which linked libraries' groups zotero.org no longer lists for
+	 * the account, and tell the user once when one goes missing: such a
+	 * library is no longer synced (nothing on this computer is removed)
+	 *
+	 * @param {Integer[]} remoteGroupIDs - The groups zotero.org lists
+	 */
+	async noteMissingGroups(remoteGroupIDs) {
+		const ZML = ZoteroMultipleLibraries;
+		let remote = new Set(remoteGroupIDs);
+		for (let library of this.getAll()) {
+			if (!this.isLinkedLibrary(library)) {
+				continue;
+			}
+			let missing = !remote.has(library.groupID);
+			if (missing == !!ZML.Settings.get(library.libraryID).groupMissing) {
+				continue;
+			}
+			await ZML.Settings.update(library.libraryID, (c) => {
+				c.groupMissing = missing;
+			});
+			if (missing) {
+				ZML.Util.log(`group ${library.groupID} of library ${library.libraryID} is not listed by zotero.org: not syncing`);
+				this._notifyGroupMissing(library);
+			}
+		}
+	},
+
+	_notifyGroupMissing(library) {
+		const ZML = ZoteroMultipleLibraries;
+		try {
+			let progressWindow = new Zotero.ProgressWindow({ closeOnClick: true });
+			progressWindow.changeHeadline(ZML.Util.getString("zml-group-missing-headline"));
+			progressWindow.addDescription(ZML.Util.getString("zml-group-missing-text", { name: library.name }));
+			progressWindow.show();
+			progressWindow.startCloseTimer(15000);
+		}
+		catch (e) {
+			ZML.Util.error(e);
+		}
+	},
+
 	_sorted(libraries) {
 		let collation = Zotero.getLocaleCollation();
 		libraries.sort((a, b) => collation.compareString(1, a.name, b.name));

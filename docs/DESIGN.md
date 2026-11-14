@@ -265,8 +265,11 @@ For a linked library whose file mode is WebDAV the plugin therefore:
   whose `verified` flag, username, scheme and URL come from the library's
   settings row, whose password lives in the login manager under the realm
   `ZoteroMultipleLibraries WebDAV L<libraryID>`, and whose `_init()` builds
-  the URIs from those values. Everything else (verification, `.prop`/`.zip`
-  upload and download, purging) is Zotero's code unchanged.
+  the URIs from those values. Verification, `.prop`/`.zip` upload and
+  download, and the purge of deleted items' files are Zotero's code
+  unchanged. Zotero's purge of "orphaned" server files is switched off for
+  these controllers: it looks every file up in My Library and would delete
+  the extra library's own files.
 
 A library can also reuse My Library's WebDAV server ("Use My Library's
 WebDAV server and account"): the controller then takes scheme, URL and
