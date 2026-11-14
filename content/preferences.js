@@ -225,8 +225,10 @@ window.ZoteroMultipleLibrariesPrefs = {
 		this.$("zml-file-heading").textContent = this.getString("zml-prefs-file-heading", { name: library.name });
 
 		// Syncing
+		let groupMissing = linked && ZML.Settings.get(library.libraryID).groupMissing;
 		this.$("zml-sync-status").textContent = linked
-			? this.getString("zml-prefs-status-linked", { groupID: String(library.groupID) })
+			? this.getString(groupMissing ? "zml-prefs-status-group-missing" : "zml-prefs-status-linked",
+				{ groupID: String(library.groupID) })
 			: this.getString("zml-prefs-status-local");
 		this.$("zml-link-box").hidden = linked;
 		this.$("zml-linked-box").hidden = !linked;
@@ -276,6 +278,10 @@ window.ZoteroMultipleLibrariesPrefs = {
 		let unset = config.mode == "unset";
 		let mode = ZML.Storage.MODES.includes(config.mode) ? config.mode : (unset ? "" : "zotero");
 		this.$("zml-file-deliberate-note").hidden = !unset;
+		// zotero.org's "file editing" switch for the group also stops uploads
+		// to WebDAV (Zotero skips them); say so rather than fail silently
+		let library = Zotero.Libraries.get(libraryID);
+		this.$("zml-file-not-editable").hidden = !(mode == "webdav" && library && !library.filesEditable);
 		let radiogroup = this.$("zml-file-mode");
 		if (mode) {
 			radiogroup.value = mode;

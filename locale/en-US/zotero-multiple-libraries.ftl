@@ -71,6 +71,9 @@ zml-prefs-adopt-explanation = Or turn one of your group libraries into an extra 
 zml-prefs-sync-heading = Syncing “{ $name }”
 zml-prefs-status-local = Not synced: this library exists only on this computer and does not count against your Zotero storage.
 zml-prefs-status-linked = Synced with your Zotero account as zotero.org group { $groupID }.
+zml-prefs-status-group-missing = Not syncing: zotero.org no longer lists group { $groupID } for your account (it was deleted, or you are no longer a member). The library and its files are still on this computer.
+zml-group-missing-headline = Library No Longer Syncing
+zml-group-missing-text = “{ $name }” is no longer syncing: its group was not found on zotero.org. Nothing on this computer was removed.
 zml-prefs-link-explanation = A Zotero account has a single personal library, so an extra library is synced as a private group of your account (only you are a member). Three steps:
 zml-prefs-step1 =
     .value = 1. Create a private group on zotero.org
@@ -103,6 +106,7 @@ zml-prefs-release-explanation = Turns it back into an ordinary group library.
 
 zml-prefs-file-heading = Files of “{ $name }”
 zml-prefs-file-sync-unavailable = Attachment files can be synced once syncing is enabled for this library.
+zml-prefs-file-not-editable = Files are not being uploaded: file editing is turned off for this group on zotero.org. Turn it on in the group’s Library Settings there. Nothing on this computer is removed.
 zml-prefs-file-deliberate = No file syncing choice has been made for this library on this computer, and none was found from your other computers. Choose below; the choice must be the same on every computer that syncs this library, and it is shared with them from now on.
 zml-prefs-shared-note = The file syncing choice (including a WebDAV server’s address and username, never its password) is stored in the group’s settings on zotero.org, so that your other computers use the same.
 zml-prefs-password-required = Password required on this computer: the settings came from another computer, and passwords are never shared.
