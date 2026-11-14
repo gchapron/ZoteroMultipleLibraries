@@ -49,7 +49,7 @@ zml-delete-linked-library-text =
 
 ## Preferences pane
 
-zml-prefpane-label = ZoteroMultipleLibraries
+zml-prefpane-label = Multiple Libraries
 
 zml-prefs-libraries-heading = Libraries
 zml-prefs-library-label =

@@ -36,7 +36,7 @@ Zotero 10 (developed and tested on 10.0.4 and 10.0.5).
   confirmation; deletes the library, its items, and attachment files stored in
   Zotero from this computer).
 - **Settings** (syncing, files): right-click the library → Library Settings…,
-  or Settings → ZoteroMultipleLibraries.
+  or Settings → Multiple Libraries.
 - Everything else is plain Zotero: create collections and saved searches in
   the library, drag items between libraries, import files into it, save from
   the browser connector while it is selected, cite from it in Word.
@@ -47,7 +47,7 @@ libraries in the tree (default: on).
 
 ## Syncing
 
-Settings → ZoteroMultipleLibraries has three parts: the libraries, the syncing
+Settings → Multiple Libraries has three parts: the libraries, the syncing
 of the selected library, and its files.
 
 ![Settings for a library that is not synced yet](docs/screenshot-settings-local.png)

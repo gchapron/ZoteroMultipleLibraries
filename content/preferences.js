@@ -1,6 +1,6 @@
 /* global Zotero, Services, window, document, MozXULElement */
 /*
- * Preferences pane: Zotero → Settings → ZoteroMultipleLibraries
+ * Preferences pane: Zotero → Settings → Multiple Libraries
  *
  * Loaded by Zotero into a sandbox whose prototype is the preferences window,
  * before the pane markup (content/preferences.xhtml) is inserted.
@@ -440,7 +440,7 @@ window.ZoteroMultipleLibrariesPrefs = {
 		}
 		let useMain = this.$("zml-webdav-source").value == "main";
 		if (useMain && !this.ZML.Storage.mainWebDAVAvailable()) {
-			Services.prompt.alert(window, this.getString("zml-prefpane-label"),
+			Services.prompt.alert(window, this.getString("zml-plugin-name"),
 				this.getString("zml-prefs-webdav-main-unavailable"));
 			this.$("zml-webdav-source").value = "custom";
 			return;
@@ -475,7 +475,7 @@ window.ZoteroMultipleLibrariesPrefs = {
 		// Never share a folder with My Library's WebDAV sync…
 		if (Zotero.Prefs.get("sync.storage.protocol") == "webdav"
 				&& normalize(Zotero.Prefs.get("sync.storage.url")) == mine) {
-			Services.prompt.alert(window, this.getString("zml-prefpane-label"),
+			Services.prompt.alert(window, this.getString("zml-plugin-name"),
 				this.getString("zml-error-url-same-as-main"));
 			return false;
 		}
@@ -492,7 +492,7 @@ window.ZoteroMultipleLibrariesPrefs = {
 				? (ZML.Storage.getDisplayRootURL(other.libraryID) || "").replace(/\/zotero\/?$/, "")
 				: config.url;
 			if (normalize(otherURL) == mine) {
-				Services.prompt.alert(window, this.getString("zml-prefpane-label"),
+				Services.prompt.alert(window, this.getString("zml-plugin-name"),
 					this.getString("zml-error-url-same-as-other", { name: other.name }));
 				return false;
 			}
