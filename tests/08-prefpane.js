@@ -44,6 +44,12 @@ out.pane = {
 	stepsVisible: !$("zml-open-groups").hidden && !$("zml-sync-now").hidden,
 	selectPrefCleared: ZML.Util.getPref("selectLibrary"),
 };
+// The pane's name in the settings sidebar is shown in full, not cut off
+let navLabel = prefWin.Zotero_Preferences.navigation.selectedItem.querySelector("label");
+out.nav = {
+	label: navLabel.getAttribute("value"),
+	cutOff: navLabel.scrollWidth > navLabel.clientWidth,
+};
 
 // Rejected group IDs never get past model validation
 out.validation = {};
